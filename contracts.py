@@ -36,6 +36,7 @@ def create_stock_contract(symbol, currency=Currency.USD, exchange=Exchange.SMART
     """
     if not isinstance(currency, Currency):
         raise ValueError(f"currency must be an instance of Currency enum, got {currency}")
+
     if not isinstance(exchange, Exchange):
         raise ValueError(f"exchange must be an instance of Exchange enum, got {exchange}")
 
