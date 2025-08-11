@@ -4,13 +4,17 @@
 
 ### Install dependencies if this is the first time running the app
 
-1. Make the install and start scripts executable:
+1. Make the install, build, and start scripts executable:
 
    `chmod +x install.sh start.sh`
 
 1. Run the install script
 
    `./install.sh`
+
+1. Compile service proto
+
+   `./build.sh`
 
 ### Set Up IBKR
 
@@ -25,4 +29,4 @@
 
 Skip to this step if all of the above steps have been completed before:
 
-   `./start.sh`
+`./start.sh`

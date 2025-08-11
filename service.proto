@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package tradr;
+
+service TradingService {
+  rpc PlaceStockOrder(PlaceStockOrderRequest) returns (PlaceOrderResponse);
+  rpc PlaceOptionOrder(PlaceOptionOrderRequest) returns (PlaceOrderResponse);
+
+  rpc GetOrder(GetOrderRequest) returns (OrderRecord);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  rpc ListFills(ListFillsRequest) returns (ListFillsResponse);
+
+  rpc GetPositions(GetPositionsRequest) returns (GetPositionsResponse);
+  rpc GetAccountValues(GetAccountValuesRequest) returns (GetAccountValuesResponse);
+}
+
+message PlaceStockOrderRequest {
+  string symbol = 1;
+  string side = 2;  // "BUY" | "SELL" | "SHORT" | "COVER"
+  int32 quantity = 3;
+}
+
+message PlaceOptionOrderRequest {
+  string symbol = 1; // underlying, e.g. "AAPL"
+  string expiry = 2; // "YYYYMMDD"
+  double strike = 3; // e.g. 150.0
+  string right = 4; // "C" or "P"
+  string side = 5; // "BUY" | "SELL"
+  int32 quantity = 6;
+}
+
+message PlaceOrderResponse {
+  int64 order_id = 1; // internal id
+  int64 broker_order_id = 2; // may be 0 if unknown at submit time
+  string status = 3; // e.g. "SUBMITTED" or "ERROR"
+  string message = 4; // optional error/info
+}
+
+message GetOrderRequest {
+  int64 order_id = 1;
+}
+
+message OrderRecord {
+  int64 order_id = 1;
+  int64 broker_order_id = 2;
+  string asset_class = 3; // "STK" | "OPT"
+  string symbol = 4;
+  string side = 5; // "BUY"/"SELL"/"SHORT"/"COVER"
+  int32 quantity = 6;
+  string status = 7; // "SUBMITTED" TODO: Update to enum once done in underlying API
+  double avg_price = 8; // optional
+  int32 filled_qty = 9; // optional
+  string message = 10;  // last error/info
+}
+
+message ListOrdersRequest {
+  int32 limit = 1;
+}
+
+message ListOrdersResponse {
+  repeated OrderRecord orders = 1;
+}
+
+message ListFillsRequest {
+  int64 order_id = 1; int32 limit = 2;
+}
+
+message FillRecord {
+  int64 fill_id = 1;
+  int64 order_id = 2;
+  string exec_id = 3;
+  double price = 4;
+  int32 filled_qty = 5;
+  string symbol = 6;
+  string side = 7;
+  string time = 8;
+  int64 broker_order_id = 9;
+}
+
+message ListFillsResponse {
+  repeated FillRecord fills = 1;
+}
+
+message GetPositionsRequest {}
+
+message PositionRecord {
+  string account = 1;
+  string symbol = 2;
+  string sec_type = 3; // "STK", "OPT"
+  string exchange = 4;
+  int64 con_id = 5;
+  double position = 6;
+  double avg_cost = 7;
+}
+message GetPositionsResponse {
+  repeated PositionRecord positions = 1;
+}
+
+message GetAccountValuesRequest {}
+
+message AccountValueRecord {
+  string account = 1;
+  string tag = 2;
+  string currency = 3;
+  string value = 4;
+}
+
+message GetAccountValuesResponse {
+  repeated AccountValueRecord account_values = 1;
+}

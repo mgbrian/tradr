@@ -1,0 +1,292 @@
+"""gRPC client.
+
+Provides a client class that wraps the generated gRPC stubs and converts protobuf
+messages into simple Python data structures (similar to the core API).
+Also provides snake case aliases for all the methods.
+
+Example:
+    from client import TradingClient
+
+    with TradingClient("localhost:50051") as c:
+        resp = c.place_stock_order("AAPL", "BUY", 10)
+        # resp -> {'order_id': 123, 'broker_order_id': 456, 'status': 'SUBMITTED', 'message': ''}
+        print(resp)
+"""
+
+import grpc
+
+import service_pb2
+import service_pb2_grpc
+
+
+def _order_record_to_dict(msg):
+    """Convert a service_pb2.OrderRecord into a dict."""
+    if msg is None:
+        return {}
+
+    return {
+        'order_id': int(msg.order_id),
+        'broker_order_id': int(msg.broker_order_id),
+        'asset_class': msg.asset_class,
+        'symbol': msg.symbol,
+        'side': msg.side,
+        'quantity': int(msg.quantity),
+        'status': msg.status,
+        'avg_price': float(msg.avg_price),
+        'filled_qty': int(msg.filled_qty),
+        'message': msg.message,
+    }
+
+
+def _fill_record_to_dict(msg):
+    """Convert a service_pb2.FillRecord into a dict."""
+    if msg is None:
+        return {}
+
+    return {
+        'fill_id': int(msg.fill_id),
+        'order_id': int(msg.order_id),
+        'exec_id': msg.exec_id,
+        'price': float(msg.price),
+        'filled_qty': int(msg.filled_qty),
+        'symbol': msg.symbol,
+        'side': msg.side,
+        'time': msg.time,
+        'broker_order_id': int(msg.broker_order_id),
+    }
+
+
+def _position_record_to_dict(msg):
+    """Convert a service_pb2.PositionRecord into a dict."""
+    if msg is None:
+        return {}
+
+    return {
+        'account': msg.account,
+        'symbol': msg.symbol,
+        'sec_type': msg.sec_type,
+        'exchange': msg.exchange,
+        'con_id': int(msg.con_id),
+        'position': float(msg.position),
+        'avg_cost': float(msg.avg_cost),
+    }
+
+
+def _account_value_record_to_dict(msg):
+    """Convert a service_pb2.AccountValueRecord into a dict."""
+    if msg is None:
+        return {}
+
+    return {
+        'account': msg.account,
+        'tag': msg.tag,
+        'currency': msg.currency,
+        'value': msg.value,
+    }
+
+
+class TradingClient:
+    """Thin gRPC client for TradingService that returns Python datatypes."""
+
+    def __init__(self, address, *, secure_channel_credentials=None, timeout=1.0):
+        """Initialize the TradingClient.
+
+        Args:
+            address: str - Server address, e.g. "localhost:50051" or a unix socket address.
+
+            Kwargs:
+            ---
+            secure_channel_credentials: grpc.ChannelCredentials or None -
+                Use secure channel if provided.
+            timeout: float - Default RPC timeout in seconds for all calls unless overridden.
+                Default 1.0.
+        """
+        self.address = address
+        self.timeout = timeout
+        if secure_channel_credentials is None:
+            self._channel = grpc.insecure_channel(self.address)
+
+        else:
+            self._channel = grpc.secure_channel(self.address, secure_channel_credentials)
+
+        self._stub = service_pb2_grpc.TradingServiceStub(self._channel)
+
+    def __enter__(self):
+        """Enter context manager and return the client."""
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        """Exit context manager and close the channel."""
+        self.close()
+
+    def close(self):
+        """Close the underlying gRPC channel."""
+        self._channel.close()
+
+    def PlaceStockOrder(self, symbol, side, quantity, timeout=None):
+        """Place a stock market order.
+
+        Args:
+            symbol: str - Ticker, e.g. "AAPL".
+            side: str - "BUY" | "SELL" | "SHORT" | "COVER".
+            quantity: int - Number of shares.
+            timeout: float - Optional RPC timeout in seconds.
+                If not provided, instance-level timeout is used.
+
+        Returns:
+            dict - {'order_id', 'broker_order_id', 'status', 'message'}
+        """
+        timeout = timeout or self.timeout
+        req = service_pb2.PlaceStockOrderRequest(symbol=symbol, side=side, quantity=int(quantity))
+        resp = self._stub.PlaceStockOrder(req, timeout=timeout)
+        return {
+            'order_id': int(resp.order_id),
+            'broker_order_id': int(resp.broker_order_id),
+            'status': resp.status,
+            'message': resp.message,
+        }
+
+    def PlaceOptionOrder(self, symbol, expiry, strike, right, side, quantity, timeout=None):
+        """Place an option market order.
+
+        Args:
+            symbol: str - Underlying ticker.
+            expiry: str - Expiry in YYYYMMDD.
+            strike: float - Strike price.
+            right: str - "C" or "P".
+            side: str - "BUY" | "SELL".
+            quantity: int - Number of contracts.
+            timeout: float - Optional RPC timeout in seconds.
+                If not provided, instance-level timeout is used.
+
+        Returns:
+            dict - {'order_id', 'broker_order_id', 'status', 'message'}
+        """
+        timeout = timeout or self.timeout
+        req = service_pb2.PlaceOptionOrderRequest(
+            symbol=symbol,
+            expiry=expiry,
+            strike=float(strike),
+            right=right,
+            side=side,
+            quantity=int(quantity),
+        )
+        resp = self._stub.PlaceOptionOrder(req, timeout=timeout)
+        return {
+            'order_id': int(resp.order_id),
+            'broker_order_id': int(resp.broker_order_id),
+            'status': resp.status,
+            'message': resp.message,
+        }
+
+    def GetOrder(self, order_id, timeout=None):
+        """Fetch a single order by id.
+
+        Args:
+            order_id: int - Internal order id.
+            timeout: float - Optional RPC timeout in seconds.
+                If not provided, instance-level timeout is used.
+
+        Returns:
+            dict - Order record (see _order_record_to_dict).
+        """
+        timeout = timeout or self.timeout
+        req = service_pb2.GetOrderRequest(order_id=int(order_id))
+        resp = self._stub.GetOrder(req, timeout=timeout)
+
+        return _order_record_to_dict(resp)
+
+    def ListOrders(self, limit=None, timeout=None):
+        """List recent orders.
+
+        Args:
+            limit: int - Maximum number of orders to return.
+            timeout: float - Optional RPC timeout in seconds.
+                If not provided, instance-level timeout is used.
+
+        Returns:
+            list of dict - List of order records.
+        """
+        timeout = timeout or self.timeout
+        req = service_pb2.ListOrdersRequest(limit=int(limit) if limit is not None else 0)
+        resp = self._stub.ListOrders(req, timeout=timeout)
+
+        return [_order_record_to_dict(r) for r in resp.orders]
+
+    def ListFills(self, order_id=None, limit=None, timeout=None):
+        """List fills, optionally filtered by order id.
+
+        Args:
+            order_id: int - If provided, filter by this order id.
+            limit: int - Maximum number of fills to return.
+            timeout: float - Optional RPC timeout in seconds.
+                If not provided, instance-level timeout is used.
+
+        Returns:
+            list of dict - List of fill records.
+        """
+        timeout = timeout or self.timeout
+        req = service_pb2.ListFillsRequest(
+            order_id=int(order_id) if order_id is not None else 0,
+            limit=int(limit) if limit is not None else 0,
+        )
+        resp = self._stub.ListFills(req, timeout=timeout)
+        return [_fill_record_to_dict(r) for r in resp.fills]
+
+    def GetPositions(self, timeout=None):
+        """Return current positions snapshot.
+
+        Args:
+            timeout: float - Optional RPC timeout in seconds.
+                If not provided, instance-level timeout is used.
+
+        Returns:
+            list of dict - List of position records.
+        """
+        timeout = timeout or self.timeout
+        resp = self._stub.GetPositions(service_pb2.GetPositionsRequest(), timeout=timeout)
+        return [_position_record_to_dict(r) for r in resp.positions]
+
+    def GetAccountValues(self, timeout=None):
+        """Return current account values snapshot.
+
+        Args:
+            timeout: float - Optional RPC timeout in seconds.
+                If not provided, instance-level timeout is used.
+
+        Returns:
+            list of dict - List of account value records.
+        """
+        timeout = timeout or self.timeout
+        resp = self._stub.GetAccountValues(service_pb2.GetAccountValuesRequest(), timeout=timeout)
+        return [_account_value_record_to_dict(r) for r in resp.account_values]
+
+    # --- Snake_case aliases
+
+    def place_stock_order(self, symbol, side, quantity, timeout=None):
+        """Alias for PlaceStockOrder."""
+        return self.PlaceStockOrder(symbol, side, quantity, timeout=timeout)
+
+    def place_option_order(self, symbol, expiry, strike, right, side, quantity, timeout=None):
+        """Alias for PlaceOptionOrder."""
+        return self.PlaceOptionOrder(symbol, expiry, strike, right, side, quantity, timeout=timeout)
+
+    def get_order(self, order_id, timeout=None):
+        """Alias for GetOrder."""
+        return self.GetOrder(order_id, timeout=timeout)
+
+    def list_orders(self, limit=None, timeout=None):
+        """Alias for ListOrders."""
+        return self.ListOrders(limit=limit, timeout=timeout)
+
+    def list_fills(self, order_id=None, limit=None, timeout=None):
+        """Alias for ListFills."""
+        return self.ListFills(order_id=order_id, limit=limit, timeout=timeout)
+
+    def get_positions(self, timeout=None):
+        """Alias for GetPositions."""
+        return self.GetPositions(timeout=timeout)
+
+    def get_account_values(self, timeout=None):
+        """Alias for GetAccountValues."""
+        return self.GetAccountValues(timeout=timeout)
