@@ -75,5 +75,5 @@ def create_option_contract(symbol, expiry, strike, right, currency=Currency.USD,
     if not isinstance(exchange, Exchange):
         raise ValueError(f"exchange must be an instance of Exchange enum, got {exchange}")
 
-    contract = Option(symbol, expiry, strike, right, exchange.value, currency.value)
+    contract = Option(symbol, expiry, strike, right.value, exchange.value, currency.value)
     return contract
