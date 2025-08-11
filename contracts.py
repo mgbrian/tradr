@@ -7,6 +7,11 @@ from ib_insync import Stock, Option
 from enum import Enum
 
 
+class OptionType(Enum):
+    CALL = 'C'
+    PUT = 'P'
+
+
 class Currency(Enum):
     USD = 'USD'
     EUR = 'EUR'
@@ -51,9 +56,9 @@ def create_option_contract(symbol, expiry, strike, right, currency=Currency.USD,
         symbol: str - Underlying stock ticker symbol.
         expiry: str - Expiry date in YYYYMMDD format.
         strike: float - Strike price.
-        right: str - 'C' for Call or 'P' for Put.
-        currency: Currency - Currency enum (default USD).
-        exchange: Exchange - Exchange enum (default SMART).
+        right: OptionType - OptionType.CALL or OptionType.PUT.
+        currency: Currency (Optional) - Currency enum (default USD).
+        exchange: Exchange (Optional) - Exchange enum (default SMART).
 
     Returns:
         Option - IBKR Option contract instance.
@@ -61,8 +66,8 @@ def create_option_contract(symbol, expiry, strike, right, currency=Currency.USD,
     Raises:
         ValueError - If right is not 'C' or 'P', or currency/exchange enums invalid.
     """
-    if right not in ('C', 'P'):
-        raise ValueError("right must be 'C' for Call or 'P' for Put")
+    if not isinstance(right, OptionType):
+        raise ValueError(f"right must be an instance of OptionType, got {right}")
 
     if not isinstance(currency, Currency):
         raise ValueError(f"currency must be an instance of Currency enum, got {currency}")

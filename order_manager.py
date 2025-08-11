@@ -18,7 +18,7 @@ TODO:
 """
 
 from ib_insync import MarketOrder
-from contracts import create_stock_contract, create_option_contract
+from contracts import OptionType, create_stock_contract, create_option_contract
 
 
 class OrderManager:
@@ -112,7 +112,7 @@ class OrderManager:
         if right not in ('C', 'P'):
             raise ValueError("right must be 'C' for Call or 'P' for Put")
 
-        contract = create_option_contract(symbol, expiry, strike, right)
+        contract = create_option_contract(symbol, expiry, strike, OptionType(right))
         order = MarketOrder('BUY', quantity)
         trade = self.ib.placeOrder(contract, order)
         return trade
@@ -133,7 +133,7 @@ class OrderManager:
         if right not in ('C', 'P'):
             raise ValueError("right must be 'C' for Call or 'P' for Put")
 
-        contract = create_option_contract(symbol, expiry, strike, right)
+        contract = create_option_contract(symbol, expiry, strike, OptionType(right))
         order = MarketOrder('SELL', quantity)
         trade = self.ib.placeOrder(contract, order)
         return trade
