@@ -32,7 +32,8 @@ class IBSession:
             RuntimeError - If the connection fails.
         """
         logger.info(f"Connecting to IB at {self.host}:{self.port} (clientId={self.client_id})...")
-        self.ib.connect(self.host, self.port, self.client_id)
+        # clientId should ideally be a kwarg
+        self.ib.connect(self.host, self.port, clientId=self.client_id)
 
         if not self.ib.isConnected():
             raise RuntimeError("Failed to connect to IB Gateway/TWS")
