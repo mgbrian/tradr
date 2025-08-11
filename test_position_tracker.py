@@ -3,39 +3,8 @@ import unittest
 from unittest.mock import MagicMock
 
 from position_tracker import PositionTracker
+from _test_utils import FakeEvent
 
-
-class FakeEvent:
-    """ib_insync.Event test double supporting +=, -=, remove(), len(), and indexing."""
-    def __init__(self):
-        self._handlers = []
-
-    # Support self.event += handler
-    def __iadd__(self, handler):
-        self._handlers.append(handler)
-        return self
-
-    # Support self.event -= handler
-    def __isub__(self, handler):
-        try:
-            self._handlers.remove(handler)
-        except ValueError:
-            pass
-        return self
-
-    # For code paths that call .remove(handler)
-    def remove(self, handler):
-        try:
-            self._handlers.remove(handler)
-        except ValueError:
-            pass
-
-    # Let tests do len(event) and event[0]
-    def __len__(self):
-        return len(self._handlers)
-
-    def __getitem__(self, idx):
-        return self._handlers[idx]
 
 
 class TestPositionTracker(unittest.TestCase):
@@ -229,6 +198,85 @@ class TestPositionTracker(unittest.TestCase):
 
         # If we try to stop again, it returns False
         self.assertFalse(self.tracker.stop())
+
+
+class TestPositionTrackerWithDB(unittest.TestCase):
+    """Tests that PositionTracker persists to DB on snapshots and events."""
+
+    def setUp(self):
+        self.ib = MagicMock()
+        self.db = MagicMock()
+
+        # Events as ib_insync-like objects
+        self.ib.positionEvent = FakeEvent()
+        self.ib.accountValueEvent = FakeEvent()
+
+        # Must be connected for start()
+        self.ib.isConnected.return_value = True
+
+        # Initial snapshot
+        self.account = 'DU111111'
+        self.aapl_contract = SimpleNamespace(conId=101, symbol='AAPL', secType='STK', exchange='NASDAQ')
+        self.ib.positions.return_value = [
+            SimpleNamespace(account=self.account, contract=self.aapl_contract, position=10, avgCost=150.0)
+        ]
+        self.ib.accountValues.return_value = [
+            SimpleNamespace(account=self.account, tag='NetLiquidation', value='100000', currency='USD')
+        ]
+
+        self.tracker = PositionTracker(self.ib, db=self.db)
+
+    def test_start_persists_initial_positions_and_account_values(self):
+        """start() should upsert initial positions and set initial account values in DB."""
+        self.tracker.start()
+
+        # Position upsert from snapshot
+        # key is (conId, account) since conId is present
+        expected_pos_key = (self.aapl_contract.conId, self.account)
+        self.db.upsert_position.assert_any_call(
+            expected_pos_key,
+            {
+                'account': self.account,
+                'contract': self.aapl_contract,
+                'position': 10,
+                'avgCost': 150.0
+            }
+        )
+
+        # Account value set from snapshot
+        self.db.set_account_value.assert_any_call(self.account, 'NetLiquidation', 'USD', '100000')
+
+    def test_position_event_triggers_db_upsert_and_delete(self):
+        """positionEvent should upsert non-zero and delete when zero."""
+        self.tracker.start()
+        handler = self.ib.positionEvent[0]
+
+        # Add TSLA +5
+        tsla = SimpleNamespace(conId=202, symbol='TSLA', secType='STK', exchange='NASDAQ')
+        handler(self.account, tsla, 5, 700.0)
+        self.db.upsert_position.assert_any_call(
+            (202, self.account),
+            {
+                'account': self.account,
+                'contract': tsla,
+                'position': 5,
+                'avgCost': 700.0
+            }
+        )
+
+        # Zero out TSLA -> delete
+        handler(self.account, tsla, 0, 700.0)
+        self.db.delete_position.assert_any_call((202, self.account))
+
+    def test_account_value_event_triggers_db_set(self):
+        """accountValueEvent should call db.set_account_value with the new value."""
+        self.tracker.start()
+        handler = self.ib.accountValueEvent[0]
+
+        handler(self.account, 'CashBalance', '50000', 'USD')
+        self.db.set_account_value.assert_any_call(self.account, 'CashBalance', 'USD', '50000')
+
+
 
 
 if __name__ == "__main__":

@@ -28,13 +28,15 @@ logger = logging.getLogger(__name__)
 class PositionTracker:
     """Tracks positions and account values."""
 
-    def __init__(self, ib):
+    def __init__(self, ib, db=None):
         """Initialize the PositionTracker.
 
         Args:
             ib: IB - An active ib_insync.IB instance to register event handlers on.
+            db: InMemoryDB (Optional) - If provided, persist positions/account values on updates.
         """
         self.ib = ib
+        self.db = db
         # positions keyed by (contract.conId or (symbol, secType, exchange, account))
         # value is dict with fields: contract, position, avgCost, account
         self._positions = {}
@@ -59,11 +61,14 @@ class PositionTracker:
             avgCost: float - Average cost of the position.
         """
         key = self._position_key(contract, account)
+        removed = False
         with self._lock:
             if position == 0:
                 if key in self._positions:
                     logger.debug("Position zeroed -> removing %s", key)
                     del self._positions[key]
+                    removed = True
+
             else:
                 self._positions[key] = {
                     'account': account,
@@ -72,6 +77,21 @@ class PositionTracker:
                     'avgCost': avgCost
                 }
         logger.debug("Position updated: %s -> %s (avgCost=%s)", key, position, avgCost)
+
+        # Persist to DB (outside lock)
+        if self.db:
+            try:
+                if removed:
+                    self.db.delete_position(key)
+                else:
+                    self.db.upsert_position(key, {
+                        'account': account,
+                        'contract': contract,
+                        'position': position,
+                        'avgCost': avgCost
+                    })
+            except Exception:
+                logger.exception("Failed to persist position update for key=%s", key)
 
     def _on_account_value(self, account, tag, value, currency):
         """Internal handler for the IB accountValueEvent.
@@ -93,6 +113,12 @@ class PositionTracker:
                 'currency': currency
             }
         logger.debug("Account value updated: %s/%s = %s", tag, currency, value)
+
+        if self.db:
+            try:
+                self.db.set_account_value(account, tag, currency, value)
+            except Exception:
+                logger.exception("Failed to persist account value key=%s", key)
 
     # TODO: Simplify this (move some logic to helpers..)
     def start(self):
