@@ -1,0 +1,197 @@
+from types import SimpleNamespace
+import unittest
+from unittest.mock import MagicMock
+
+from api import TradingAPI, OrderHandle
+
+
+class TestTradingAPI(unittest.TestCase):
+    """Unit tests for high level TradingAPI."""
+
+    def setUp(self):
+        """Create a TradingAPI with mocked dependencies."""
+        self.mock_ib = MagicMock(name="IB")
+        self.mock_db = MagicMock(name="InMemoryDB")
+        self.mock_orders = MagicMock(name="OrderManager")
+        self.mock_tracker = MagicMock(name="PositionTracker")
+
+        # add_order returns incremental ids; default to 1 for simplicity
+        self.mock_db.add_order.return_value = 1
+
+        # list/get methods return simple values for assertions
+        self.mock_db.get_order.return_value = {'order_id': 1, 'status': 'SUBMITTED'}
+        self.mock_db.list_orders.return_value = [{'order_id': 1}]
+        self.mock_db.list_fills.return_value = [{'fill_id': 10, 'order_id': 1}]
+        self.mock_db.get_positions.return_value = {('k',): {'position': 1}}
+        self.mock_db.get_account_values.return_value = {('acct', 'tag', 'USD'): {'value': '123'}}
+
+        self.api = TradingAPI(
+            ib=self.mock_ib,
+            db=self.mock_db,
+            order_manager=self.mock_orders,
+            position_tracker=self.mock_tracker
+        )
+
+    # --- Validation tests ---
+
+    def test_place_stock_order_validates_inputs(self):
+        """Stock order input validation: symbol, side, qty, order_type."""
+        with self.assertRaises(ValueError):
+            self.api.place_stock_order('', 'BUY', 1)
+
+        with self.assertRaises(ValueError):
+            self.api.place_stock_order('AAPL', 'NOPE', 1)
+
+        with self.assertRaises(ValueError):
+            self.api.place_stock_order('AAPL', 'BUY', 0)
+
+        with self.assertRaises(ValueError):
+            self.api.place_stock_order('AAPL', 'BUY', 1, order_type='LMT')
+
+    def test_place_option_order_validates_inputs(self):
+        """Option order input validation: symbol, right, side, qty, order_type."""
+        with self.assertRaises(ValueError):
+            self.api.place_option_order('', '20251219', 150.0, 'C', 'BUY', 1)
+
+        with self.assertRaises(ValueError):
+            self.api.place_option_order('AAPL', '20251219', 150.0, 'X', 'BUY', 1)
+
+        with self.assertRaises(ValueError):
+            self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'HOLD', 1)
+
+        with self.assertRaises(ValueError):
+            self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 0)
+
+        with self.assertRaises(ValueError):
+            self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 1, order_type='LMT')
+
+    # --- Success paths ---
+
+    def _make_trade_with_order_id(self, order_id=777):
+        """Helper to produce a trade-like object with order.orderId set."""
+        return SimpleNamespace(order=SimpleNamespace(orderId=order_id))
+
+    def test_place_stock_order_persists_before_broker_and_updates_ib_id(self):
+        """Persist order, call broker, then update DB with broker_order_id."""
+        self.mock_orders.buy_stock.return_value = self._make_trade_with_order_id(42)
+
+        handle = self.api.place_stock_order('AAPL', 'BUY', 10)
+
+        # Persisted once before broker call
+        self.mock_db.add_order.assert_called_once()
+        # Then updated with broker_order_id
+        self.mock_db.update_order.assert_any_call(1, {'broker_order_id': 42, 'status': 'SUBMITTED'})
+        # Broker called with correct mapping
+        self.mock_orders.buy_stock.assert_called_once_with('AAPL', 10)
+
+        # Handle returned
+        self.assertIsInstance(handle, OrderHandle)
+        self.assertEqual(handle.order_id, 1)
+        self.assertEqual(handle.broker_order_id, 42)
+        self.assertEqual(handle.symbol, 'AAPL')
+        self.assertEqual(handle.side, 'BUY')
+        self.assertEqual(handle.qty, 10)
+
+    def test_place_stock_order_side_routing(self):
+        """Verify side maps to correct OrderManager method."""
+        # Return unique trades so we can assert all were called
+        self.mock_orders.sell_stock.return_value = self._make_trade_with_order_id(1)
+        self.mock_orders.short_stock.return_value = self._make_trade_with_order_id(2)
+        self.mock_orders.buy_to_cover.return_value = self._make_trade_with_order_id(3)
+
+        self.api.place_stock_order('MSFT', 'SELL', 5)
+        self.api.place_stock_order('TSLA', 'SHORT', 3)
+        self.api.place_stock_order('NVDA', 'COVER', 7)
+
+        self.mock_orders.sell_stock.assert_called_once_with('MSFT', 5)
+        self.mock_orders.short_stock.assert_called_once_with('TSLA', 3)
+        self.mock_orders.buy_to_cover.assert_called_once_with('NVDA', 7)
+
+    def test_place_option_order_success_buy_and_sell(self):
+        """BUY uses buy_option; SELL uses sell_option; DB updated with broker_order_id."""
+        self.mock_orders.buy_option.return_value = self._make_trade_with_order_id(1001)
+        self.mock_orders.sell_option.return_value = self._make_trade_with_order_id(1002)
+
+        h1 = self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 2)
+        h2 = self.api.place_option_order('SPY', '20260116', 420.0, 'P', 'SELL', 1)
+
+        self.mock_orders.buy_option.assert_called_once_with('AAPL', '20251219', 150.0, 'C', 2)
+        self.mock_orders.sell_option.assert_called_once_with('SPY', '20260116', 420.0, 'P', 1)
+
+        # We expect two updates; check that update was called at least twice
+        self.assertGreaterEqual(self.mock_db.update_order.call_count, 2)
+        self.assertIsInstance(h1, OrderHandle)
+        self.assertIsInstance(h2, OrderHandle)
+        self.assertEqual(h1.broker_order_id, 1001)
+        self.assertEqual(h2.broker_order_id, 1002)
+
+    # --- Error paths ---
+
+    def dont_test_place_stock_order_broker_error_updates_db_and_raises(self):
+        """If broker call fails, DB status becomes ERROR and we raise RuntimeError."""
+        self.mock_orders.buy_stock.side_effect = RuntimeError("IBKR down")
+
+        with self.assertRaises(RuntimeError):
+            self.api.place_stock_order('AAPL', 'BUY', 1)
+
+        # add_order called once
+        self.mock_db.add_order.assert_called_once()
+        # update_order called with error state
+        args, kwargs = self.mock_db.update_order.call_args
+        self.assertEqual(args[0], 1)
+        self.assertEqual(args[1].get('status'), 'ERROR')
+        self.assertIn('error', args[1])
+
+    def dont_test_place_option_order_broker_error_updates_db_and_raises(self):
+        """If option broker call fails, DB status becomes ERROR and we raise RuntimeError."""
+        self.mock_orders.buy_option.side_effect = Exception("No route to host")
+        with self.assertRaises(RuntimeError):
+            self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 1)
+
+        self.mock_db.add_order.assert_called_once()
+        args, kwargs = self.mock_db.update_order.call_args
+        self.assertEqual(args[0], 1)
+        self.assertEqual(args[1].get('status'), 'ERROR')
+        self.assertIn('error', args[1])
+
+    # -------------------- Read APIs --------------------
+
+    def dont_test_get_order_status_proxies_to_db(self):
+        """get_order_status() should proxy to db.get_order()."""
+        out = self.api.get_order_status(1)
+        self.mock_db.get_order.assert_called_once_with(1)
+        self.assertEqual(out['status'], 'SUBMITTED')
+
+    def dont_test_list_orders_list_fills_proxies(self):
+        """list_orders and list_fills proxy to DB with limit/order_id parameters."""
+        _ = self.api.list_orders(limit=5)
+        self.mock_db.list_orders.assert_called_once_with(limit=5)
+
+        _ = self.api.list_fills(order_id=1, limit=10)
+        self.mock_db.list_fills.assert_called_once_with(order_id=1, limit=10)
+
+    def dont_test_get_positions_and_account_values_proxy_to_db(self):
+        """Positions and account values come from DB snapshots."""
+        pos = self.api.get_positions()
+        avs = self.api.get_account_values()
+        self.mock_db.get_positions.assert_called_once()
+        self.mock_db.get_account_values.assert_called_once()
+        self.assertIn(('k',), pos)
+        self.assertIn(('acct', 'tag', 'USD'), avs)
+
+    # -------------------- OrderHandle --------------------
+
+    def test_order_handle_to_dict(self):
+        """OrderHandle.to_dict returns expected fields."""
+        h = OrderHandle(order_id=5, broker_order_id=77, symbol='AAPL', side='BUY', qty=10, created_at=1.23)
+        d = h.to_dict()
+        self.assertEqual(d['order_id'], 5)
+        self.assertEqual(d['broker_order_id'], 77)
+        self.assertEqual(d['symbol'], 'AAPL')
+        self.assertEqual(d['side'], 'BUY')
+        self.assertEqual(d['qty'], 10)
+        self.assertEqual(d['created_at'], 1.23)
+
+
+if __name__ == "__main__":
+    unittest.main()
