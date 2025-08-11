@@ -197,7 +197,10 @@ class PositionTracker:
                 'avgCost': float - Average cost per unit.
         """
         with self._lock:
-            return dict(self._positions)
+            # Hybrid compromise between a shallow copy -- dict(self._positions) and
+            # an expensive deep copy. Copy the first layer of the dict to prevent
+            # overwrites.
+            return {k: v.copy() for k, v in self._positions.items()}
 
     def get_position(self, contract_or_symbol, account=None):
         """Get a single position by contract object or symbol (ticker).
@@ -248,7 +251,8 @@ class PositionTracker:
         gotchas.
         """
         with self._lock:
-            return dict(self._account_values)
+            # See note in get_positions
+            return {k: v.copy() for k, v in self._account_values.items()}
 
     def is_shortable(self, symbol):
         """Check whether a symbol is shortable.
