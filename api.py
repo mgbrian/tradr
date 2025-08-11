@@ -285,9 +285,6 @@ class TradingAPI:
 
         Returns:
             dict or None - Order record (copy) from the DB including status fields, or None.
-
-        Raises:
-            None
         """
         return self.db.get_order(order_id)
 
