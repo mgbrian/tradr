@@ -2,7 +2,7 @@
 
 ## How to Run
 
-### If this is the first time, install dependencies first
+### Install dependencies if this is the first time running the app
 
 1. Make the install and start scripts executable:
 
@@ -12,10 +12,10 @@
 
    `./install.sh`
 
-### Setting Up IBKR
+### Set Up IBKR
 
-1.  Setup IB Gateway with a paper account.
-1.  Configure IBKR API settings (Enable socket clients, trusted IPs)
+1.  Set up IB Gateway with a paper account.
+1.  Configure IBKR API settings
 
         *TODO: Flesh this out.*
         - https://www.interactivebrokers.com/en/trading/ibgateway-stable.php
@@ -23,8 +23,6 @@
 
 ### Running the app
 
-If all of the above steps have been completed before:
-
-1. Run the app:
+Skip to this step if all of the above steps have been completed before:
 
    `./start.sh`
