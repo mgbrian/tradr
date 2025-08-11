@@ -1,3 +1,5 @@
+"""Tests focused on the gRPC server veneer (as underlying logic is already tested elsewhere)."""
+
 from concurrent import futures
 import unittest
 from unittest.mock import patch
