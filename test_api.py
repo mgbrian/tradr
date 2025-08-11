@@ -1,3 +1,4 @@
+import logging
 from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock
@@ -127,8 +128,14 @@ class TestTradingAPI(unittest.TestCase):
 
     # --- Error paths ---
 
-    def dont_test_place_stock_order_broker_error_updates_db_and_raises(self):
+    def test_place_stock_order_broker_error_updates_db_and_raises(self):
         """If broker call fails, DB status becomes ERROR and we raise RuntimeError."""
+        # This test by design triggers a call to logger.exception in api.py, which
+        # prints out a stack trace to the terminal, which can make it seem like
+        # the tests are failing. Silence that here!
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
         self.mock_orders.buy_stock.side_effect = RuntimeError("IBKR down")
 
         with self.assertRaises(RuntimeError):
@@ -142,8 +149,12 @@ class TestTradingAPI(unittest.TestCase):
         self.assertEqual(args[1].get('status'), 'ERROR')
         self.assertIn('error', args[1])
 
-    def dont_test_place_option_order_broker_error_updates_db_and_raises(self):
+    def test_place_option_order_broker_error_updates_db_and_raises(self):
         """If option broker call fails, DB status becomes ERROR and we raise RuntimeError."""
+        # See note in test_place_stock_order_broker_error_updates_db_and_raises
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
         self.mock_orders.buy_option.side_effect = Exception("No route to host")
         with self.assertRaises(RuntimeError):
             self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 1)
@@ -154,15 +165,15 @@ class TestTradingAPI(unittest.TestCase):
         self.assertEqual(args[1].get('status'), 'ERROR')
         self.assertIn('error', args[1])
 
-    # -------------------- Read APIs --------------------
+    # --- Read APIs ---
 
-    def dont_test_get_order_status_proxies_to_db(self):
+    def test_get_order_status_proxies_to_db(self):
         """get_order_status() should proxy to db.get_order()."""
         out = self.api.get_order_status(1)
         self.mock_db.get_order.assert_called_once_with(1)
         self.assertEqual(out['status'], 'SUBMITTED')
 
-    def dont_test_list_orders_list_fills_proxies(self):
+    def test_list_orders_list_fills_proxies(self):
         """list_orders and list_fills proxy to DB with limit/order_id parameters."""
         _ = self.api.list_orders(limit=5)
         self.mock_db.list_orders.assert_called_once_with(limit=5)
@@ -170,7 +181,7 @@ class TestTradingAPI(unittest.TestCase):
         _ = self.api.list_fills(order_id=1, limit=10)
         self.mock_db.list_fills.assert_called_once_with(order_id=1, limit=10)
 
-    def dont_test_get_positions_and_account_values_proxy_to_db(self):
+    def test_get_positions_and_account_values_proxy_to_db(self):
         """Positions and account values come from DB snapshots."""
         pos = self.api.get_positions()
         avs = self.api.get_account_values()
@@ -179,7 +190,7 @@ class TestTradingAPI(unittest.TestCase):
         self.assertIn(('k',), pos)
         self.assertIn(('acct', 'tag', 'USD'), avs)
 
-    # -------------------- OrderHandle --------------------
+    # --- OrderHandle ---
 
     def test_order_handle_to_dict(self):
         """OrderHandle.to_dict returns expected fields."""
