@@ -121,7 +121,7 @@ def _account_values_snapshot_to_response(snapshot):
     return service_pb2.GetAccountValuesResponse(account_values=records)
 
 
-class TradingService(service_pb2_grpc.TradingServiceServicer):
+class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
     """gRPC servicer that adapts to TradingAPI."""
 
     def __init__(self, api):
@@ -318,11 +318,11 @@ def serve(address=SERVER_ADDRESS, *, db=None, ib=None, api=None, position_tracke
 
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
-    service_pb2_grpc.add_TradingServiceServicer_to_server(TradingService(api), server)
+    service_pb2_grpc.add_TradingServiceServicer_to_server(TradingServiceServicer(api), server)
 
     server.add_insecure_port(address)
     server.start()
-    logger.info("gRPC TradingService started on %s", address)
+    logger.info("gRPC Trading Service started on %s", address)
 
     try:
         server.wait_for_termination()
