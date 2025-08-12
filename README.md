@@ -6,7 +6,7 @@
 
 1. Make the install, build, and start scripts executable:
 
-   `chmod +x install.sh start.sh`
+   `chmod +x install.sh build.sh start.sh`
 
 1. Run the install script
 
