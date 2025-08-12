@@ -2,3 +2,6 @@ ib_insync
 
 grpcio
 grpcio-tools
+
+django==4.2
+psycopg2-binary

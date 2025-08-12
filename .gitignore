@@ -1,5 +1,6 @@
 plan.md
 /.requirements
+env.py
 *.pyc
 scratchpad.md
 /strategies
