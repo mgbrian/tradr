@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package tradr;
 
+// TODO: Convert stuff like side, asset_class, etc. to enums.
+
 service TradingService {
   rpc PlaceStockOrder(PlaceStockOrderRequest) returns (PlaceOrderResponse);
   rpc PlaceOptionOrder(PlaceOptionOrderRequest) returns (PlaceOrderResponse);
