@@ -12,6 +12,8 @@
 
    `./install.sh`
 
+1. Look out for any final instructions output by the installer (e.g. to update env variables) and complete the TODO list before moving onto the next step.
+
 1. Compile service proto
 
    `./build.sh`
