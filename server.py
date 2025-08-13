@@ -268,7 +268,7 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
 
 
 def serve(address=SERVER_ADDRESS, *, db=None, ib=None, api=None, position_tracker=None,
-        execution_tracker=None, auto_connect=True):
+          execution_tracker=None, auto_connect=True, start_trackers=True, wait=True):
     """Start the gRPC server and wire dependencies.
 
     Args:
@@ -284,45 +284,77 @@ def serve(address=SERVER_ADDRESS, *, db=None, ib=None, api=None, position_tracke
         position_tracker: PositionTracker (optional) - Tracker for positions/account values.
         execution_tracker: ExecutionTracker (optional) - Tracker for executions/fills.
         auto_connect: bool - If True and an IBSession is created internally, connect immediately.
+        start_trackers: bool - If True, start trackers that are not already started.
+        wait: bool - If True, block on server.wait_for_termination(); otherwise return immediately.
+
+    Returns:
+        tuple - (grpc_server, handles_dict) when wait=False. The handles dict contains:
+            {
+                'db': db,
+                'ib': ib,
+                'api': api,
+                'position_tracker': position_tracker,
+                'execution_tracker': execution_tracker,
+                'ib_session': ib_session_or_none
+            }
 
     Raises:
-        RuntimeError - If IB session cannot connect.
+        RuntimeError - If IB session cannot connect or gRPC server cannot bind.
     """
-
-    # Ideally we want to have one copy of these for the entire application to
-    # avoid duplication. These are ideally created for a lower layer and then
-    # passed here, if we're also using the lower layer directly. Only create them
-    # here if they don't exist yet.
-    # TODO: Make this cleaner/more robust!
+    # Prefer passed-in singletons, lazily create what’s missing
     db = db or InMemoryDB()
+
     ib_session = None
     if ib is None:
         ib_session = IBSession()
         if auto_connect:
             ib_session.connect()
+
         ib = ib_session.ib
 
+    elif hasattr(ib, "connect") and hasattr(ib, "ib"):
+        # Caller passed an IBSession instead of IB; normalize to IB object
+        ib_session = ib
+        if auto_connect:
+            ib_session.connect()
+
+        ib = ib_session.ib
+
+    # Trackers
     position_tracker = position_tracker or PositionTracker(ib, db=db)
     execution_tracker = execution_tracker or ExecutionTracker(ib, db=db)
 
-    # Start trackers only if you created them here
-    created_trackers = []
-    if position_tracker is not None and getattr(position_tracker, '_position_handler', None) is None:
-        position_tracker.start()
-        created_trackers.append(position_tracker)
-    if execution_tracker is not None and getattr(execution_tracker, '_exec_handler', None) is None:
-        execution_tracker.start()
-        created_trackers.append(execution_tracker)
+    if start_trackers:
+        if position_tracker is not None and getattr(position_tracker, '_position_handler', None) is None:
+            position_tracker.start()
 
+        if execution_tracker is not None and getattr(execution_tracker, '_exec_handler', None) is None:
+            execution_tracker.start()
+
+    # API layer
     api = api or TradingAPI(ib, db, position_tracker=position_tracker)
 
-
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
-    service_pb2_grpc.add_TradingServiceServicer_to_server(TradingServiceServicer(api), server)
+    service_pb2_grpc.add_TradingServiceServicer_to_server(
+        TradingServiceServicer(api), server
+    )
 
-    server.add_insecure_port(address)
+    bound = server.add_insecure_port(address)
+    if bound == 0:
+        raise RuntimeError(f"Failed to bind gRPC server on {address}")
+
     server.start()
     logger.info("gRPC Trading Service started on %s", address)
+
+    if not wait:
+        return server, {
+            'db': db,
+            'ib': ib,
+            'api': api,
+            'position_tracker': position_tracker,
+            'execution_tracker': execution_tracker,
+            'ib_session': ib_session,
+        }
 
     try:
         server.wait_for_termination()

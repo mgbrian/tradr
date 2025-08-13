@@ -14,6 +14,12 @@ TODO:
 - Add idempotency keys (clientOrderId) to dedupe retries.
 - Add risk hooks (pre-trade checks) once Risk Engine is built.
 - Map broker errors into normalized error shapes.
+
+
+********************
+** IMPORTANT NOTE **
+This should not be used directly. Use the handle exposed by main. See note in main.py.
+********************
 """
 
 import logging
