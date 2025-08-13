@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from db import InMemoryDB
+from db.inmemorydb import InMemoryDB
 
 
 class TestInMemoryDB(unittest.TestCase):
@@ -141,31 +141,6 @@ class TestInMemoryDB(unittest.TestCase):
         # Limit
         limited = self.db.get_logs(limit=2)
         self.assertEqual([r['seq'] for r in limited], [2, 3])
-
-    # --- Outbox ---
-
-    def test_drain_outbox_returns_and_clears(self):
-        """Mutating operations enqueue to outbox; drain_outbox returns then clears."""
-        # Create a bit of everything
-        order_id_1 = self.db.add_order({'symbol': 'AAPL'})
-        self.db.update_order(order_id_1, {'status': 'NEW'})
-        self.db.add_fill(order_id_1, {'exec_id': 'X1', 'filled_qty': 1})
-        pkey = ('AAPL', 'STK', 'SMART', 'DU1')
-        self.db.upsert_position(pkey, {'account': 'DU1', 'position': 1, 'avgCost': 1.0, 'contract': {'symbol': 'AAPL'}})
-        self.db.set_account_value('DU1', 'CashBalance', 'USD', '50000')
-        self.db.append_log('note', {'msg': 'hello'})
-
-        batch = self.db.drain_outbox()
-        # Something in each category
-        self.assertGreater(len(batch['orders']), 0)
-        self.assertGreater(len(batch['fills']), 0)
-        self.assertGreater(len(batch['positions']), 0)
-        self.assertGreater(len(batch['account_values']), 0)
-        self.assertGreater(len(batch['logs']), 0)
-
-        # Drained -> next call should be empty
-        batch2 = self.db.drain_outbox()
-        self.assertEqual(sum(len(v) for v in batch2.values()), 0)
 
 
 if __name__ == "__main__":

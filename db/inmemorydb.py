@@ -49,13 +49,6 @@ class InMemoryDB:
         self._fill_id_seq = itertools.count(1)
         self._log_seq = itertools.count(1)
 
-        # Outbox queues for async Postgres writers (placeholders)
-        self._outbox_orders = []
-        self._outbox_fills = []
-        self._outbox_positions = []
-        self._outbox_account_values = []
-        self._outbox_logs = []
-
     # --- Order ---
 
     def add_order(self, order_record):
@@ -86,8 +79,6 @@ class InMemoryDB:
             self._orders[order_id] = rec
 
             self._append_log_locked('order_added', {'order_id': order_id})
-            # TODO: enqueue to Postgres outbox
-            self._outbox_orders.append(rec.copy())
 
             return order_id
 
@@ -117,8 +108,6 @@ class InMemoryDB:
             rec['updated_at'] = time.time()
 
             self._append_log_locked('order_updated', {'order_id': order_id, 'updates': updates.copy()})
-            # TODO: enqueue to Postgres outbox
-            self._outbox_orders.append(rec.copy())
 
             return rec.copy()
 
@@ -184,6 +173,7 @@ class InMemoryDB:
             # update order's filled_qty/avg_price if provided
             # TODO: Sanity checks here, e.g. that fill is not > order qty?
             order = self._orders[order_id]
+
             if 'filled_qty' in rec:
                 order['filled_qty'] = order.get('filled_qty', 0) + rec['filled_qty']
                 order['updated_at'] = time.time()
@@ -193,9 +183,6 @@ class InMemoryDB:
                 order['updated_at'] = time.time()
 
             self._append_log_locked('fill_added', {'fill_id': fill_id, 'order_id': order_id})
-            # TODO: enqueue to Postgres outbox
-            self._outbox_fills.append(rec.copy())
-            self._outbox_orders.append(order.copy())
 
             return fill_id
 
@@ -214,7 +201,6 @@ class InMemoryDB:
 
     def list_fills(self, order_id=None, limit=None):
         """List fills, optionally filtered by order_id and limited (in reverse creation order).
-
 
         Args:
             order_id: int (Optional) - If provided, only returns fills for this order.
@@ -263,10 +249,6 @@ class InMemoryDB:
         with self._lock:
             self._positions[position_key] = position_record.copy()
             self._append_log_locked('position_upserted', {'position_key': position_key})
-            # TODO: enqueue to Postgres outbox
-            self._outbox_positions.append(
-                {'key': position_key, 'value': position_record.copy()}
-            )
 
             return self._positions[position_key].copy()
 
@@ -284,8 +266,6 @@ class InMemoryDB:
             if existed:
                 del self._positions[position_key]
                 self._append_log_locked('position_deleted', {'position_key': position_key})
-                # TODO: enqueue to Postgres outbox
-                self._outbox_positions.append({'key': position_key, 'deleted': True})
 
             return existed
 
@@ -323,8 +303,6 @@ class InMemoryDB:
             }
             self._account_values[key] = rec
             self._append_log_locked('account_value_set', {'key': key, 'value': value})
-            # TODO: enqueue to Postgres outbox
-            self._outbox_account_values.append({'key': key, 'value': value})
 
             return rec.copy()
 
@@ -352,9 +330,6 @@ class InMemoryDB:
         """
         with self._lock:
             seq = self._append_log_locked(event_type, payload)
-            # TODO: enqueue to Postgres outbox
-            self._outbox_logs.append({'seq': seq, 'event_type': event_type, 'payload': payload.copy()})
-
             return seq
 
     def get_logs(self, since_seq=None, limit=1000):
@@ -378,12 +353,15 @@ class InMemoryDB:
 
             return [e.copy() for e in rows]
 
+    def get_log_entries_since(self, since_seq, limit):
+        """get_logs alias."""
+        return self.get_logs(since_seq=since_seq, limit=limit)
+
     def _append_log_locked(self, event_type, payload):
         """Append a log entry while holding the lock.
 
-        *NOTE*: This is for internal use only and must be called with
-          self._lock already held. Any other use should use append_lock which
-          handles locking.
+        *NOTE*: Internal use only; external callers should use append_log, which
+        handles locking.
 
         Args:
             event_type: str - Event label.
@@ -401,39 +379,3 @@ class InMemoryDB:
         }
         self._log.append(entry)
         return seq
-
-    # --- Outbox ---
-
-    def drain_outbox(self):
-        """Drain outbox queues for async writers.
-
-        This is intended for a background worker that will pop pending changes
-        and write them to Postgres. For now, it simply returns copies and clears
-        the queues.
-
-        TODO: Complete full functionality on Postgres integration.
-
-        Returns:
-            dict - A dict with lists for each category:
-
-                'orders': list - Pending order records.
-                'fills': list - Pending fill records.
-                'positions': list - Pending position upserts/deletes.
-                'account_values': list - Pending account value upserts.
-                'logs': list - Pending log entries.
-        """
-        with self._lock:
-            batch = {
-                'orders': [r.copy() for r in self._outbox_orders],
-                'fills': [r.copy() for r in self._outbox_fills],
-                'positions': [dict(x) for x in self._outbox_positions],
-                'account_values': [dict(x) for x in self._outbox_account_values],
-                'logs': [dict(x) for x in self._outbox_logs],
-            }
-            self._outbox_orders.clear()
-            self._outbox_fills.clear()
-            self._outbox_positions.clear()
-            self._outbox_account_values.clear()
-            self._outbox_logs.clear()
-
-            return batch

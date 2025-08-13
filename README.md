@@ -4,9 +4,9 @@
 
 ### Install dependencies if this is the first time running the app
 
-1. Make the install, build, and start scripts executable:
+1. Make the install, build, test, and start scripts executable:
 
-   `chmod +x install.sh build.sh start.sh`
+   `chmod +x install.sh build.sh test.sh start.sh`
 
 1. Run the install script
 

@@ -10,7 +10,7 @@ import service_pb2
 import service_pb2_grpc
 
 from api import TradingAPI
-from db import InMemoryDB
+from db.inmemorydb import InMemoryDB
 from execution_tracker import ExecutionTracker
 from position_tracker import PositionTracker
 from session import IBSession
