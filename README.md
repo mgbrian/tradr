@@ -16,7 +16,7 @@
 
 1. Ensure `npm`, `protoc`, and the necessary gRPC Web plugins are installed before moving onto the next step.
    - See https://github.com/grpc/grpc-web?tab=readme-ov-file#code-generator-plugins
-   - TODO: Add these to install script.
+   - TODO: Add these to install script. Also add note to have Homebrew installed if on macOS.
 
 1. Compile service proto
 
