@@ -4,3 +4,4 @@ env.py
 *.pyc
 scratchpad.md
 /strategies
+/web/node_modules
