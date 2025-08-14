@@ -33,12 +33,23 @@ fi
 echo "Compiling the following proto files:"
 echo "$PROTO_FILES"
 
+echo ""
+echo "Compiling to Python..."
 $VENV_PYTHON_EXECUTABLE -m grpc_tools.protoc \
     -I$SCRIPT_DIR \
     --python_out=$SCRIPT_DIR \
     --pyi_out=$SCRIPT_DIR \
     --grpc_python_out=$SCRIPT_DIR \
     $PROTO_FILES \
-    || { echo "Proto compilation failed."; exit 1; }
+    || { echo "Proto compilation to Python failed."; exit 1; }
 
-echo "Done."
+echo "Python compilation done."
+
+echo ""
+echo "Compiling to JS..."
+protoc -I . service.proto \
+ --js_out=import_style=commonjs:./web/src/protos \
+ --grpc-web_out=import_style=commonjs,mode=grpcwebtext:./web/src/protos \
+ || { echo "Proto compilation to JS failed. For help, see https://github.com/grpc/grpc-web"; exit 1; }
+
+echo "JS compilation done."
