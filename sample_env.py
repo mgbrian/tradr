@@ -1,3 +1,4 @@
+# Copy into env.py and update accordingly.
 import os
 
 os.environ.setdefault("DJANGO_SECRET_KEY", "<some long string>")
