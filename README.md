@@ -14,6 +14,10 @@
 
 1. Look out for any final instructions output by the installer (e.g. to update env variables) and complete the TODO list before moving onto the next step.
 
+1. Ensure `npm`, `protoc`, and the necessary gRPC Web plugins are installed before moving onto the next step.
+   - See https://github.com/grpc/grpc-web?tab=readme-ov-file#code-generator-plugins
+   - TODO: Add these to install script.
+
 1. Compile service proto
 
    `./build.sh`
