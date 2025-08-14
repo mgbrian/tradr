@@ -26,7 +26,9 @@ if _version_not_supported:
 
 
 class TradingServiceStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """TODO: Convert stuff like side, asset_class, etc. to enums.
+
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -72,7 +74,9 @@ class TradingServiceStub(object):
 
 
 class TradingServiceServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """TODO: Convert stuff like side, asset_class, etc. to enums.
+
+    """
 
     def PlaceStockOrder(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -163,7 +167,9 @@ def add_TradingServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class TradingService(object):
-    """Missing associated documentation comment in .proto file."""
+    """TODO: Convert stuff like side, asset_class, etc. to enums.
+
+    """
 
     @staticmethod
     def PlaceStockOrder(request,
