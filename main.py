@@ -86,6 +86,9 @@ class App:
         """Connect to IB, start trackers, create API, and start gRPC server."""
         # Connect once
         self.ib_session.connect()
+        # These should trigger a failure if the IB loop is unavailable. See session.py
+        assert self.ib_session.ib.isConnected()
+        assert getattr(self.ib_session.ib, 'loop', None) is not None
 
         # Trackers share the same IB + DB
         self.position_tracker = PositionTracker(self.ib_session.ib, db=self.db)

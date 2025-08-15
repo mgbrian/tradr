@@ -1,7 +1,15 @@
+"""IB Session Manager.
+
+TODO:
+- Enforce singleton IBSession per client to ensure system-wide consistency with
+  the IB (asyncio) loop.
+  See connect().
+"""
+
 import logging
 import os
 
-from ib_insync import IB
+from ib_insync import IB, util
 
 
 logger = logging.getLogger(__name__)
@@ -33,22 +41,24 @@ class IBSession:
         self.port = port
         self.client_id = client_id
         self.ib = IB()
+        self.loop = None  # will be set on connect
 
     def connect(self):
-        """Connect to IB Gateway/TWS.
-
-        Returns:
-            bool - True if connected, False otherwise.
-
-        Raises:
-            RuntimeError - If the connection fails.
-        """
+        """Connect to IB Gateway/TWS and pin the IB asyncio loop."""
         logger.info(f"Connecting to IB at {self.host}:{self.port} (clientId={self.client_id})...")
-        # clientId should ideally be a kwarg
+
+        # Ensure a running asyncio loop for ib_insync (idempotent)
+        util.startLoop()
+
+        # Connect (sync path is fine here)
         self.ib.connect(self.host, self.port, clientId=self.client_id)
 
         if not self.ib.isConnected():
             raise RuntimeError("Failed to connect to IB Gateway/TWS")
+
+        # Pin the loop used by ib_insync so other threads can target it
+        self.loop = util.getLoop()
+        setattr(self.ib, 'loop', self.loop)  # OrderManager will read this
 
         logger.info("Connected to IB Gateway/TWS")
         return True
