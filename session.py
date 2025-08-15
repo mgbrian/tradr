@@ -1,15 +1,21 @@
 import logging
+import os
 
 from ib_insync import IB
 
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_IB_HOST = os.environ.get("IB_HOST") or "127.0.0.1"  # 'or' to catch "" and None
+try:
+    DEFAULT_IB_PORT = int(os.environ.get("IB_PORT"))
+except (TypeError, ValueError):
+    DEFAULT_IB_PORT = 7497
 
 class IBSession:
     """Interactive Brokers session manager using ib_insync."""
 
-    def __init__(self, host='127.0.0.1', port=7497, client_id=1):
+    def __init__(self, host=DEFAULT_IB_HOST, port=DEFAULT_IB_PORT, client_id=1):
         """Initialize an IBSession instance.
 
         Args:

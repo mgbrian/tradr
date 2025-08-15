@@ -1,8 +1,14 @@
 # Copy into env.py and update accordingly.
 import os
 
-os.environ.setdefault("DJANGO_SECRET_KEY", "<some long string>")
+# Interactive Brokers Settings
+os.environ.setdefault("IB_HOST", "") # Usually localhost.
+os.environ.setdefault("IB_PORT", "") # Usual defaults: 7497 - paper trading, 7496 - live.
 
+# Make this a long, unpredictable value.
+os.environ.setdefault("DJANGO_SECRET_KEY", "")
+
+# Postgres Settings
 os.environ.setdefault("POSTGRES_DB_USER", "")
 os.environ.setdefault("POSTGRES_DB_PASSWORD", "")
 os.environ.setdefault("POSTGRES_HOST", "")
