@@ -33,12 +33,12 @@ import signal
 import sys
 import time
 
-from session import IBSession
-from db.inmemorydb import InMemoryDB
-from position_tracker import PositionTracker
-from execution_tracker import ExecutionTracker
 from api import TradingAPI
+from db.inmemorydb import InMemoryDB
+from execution_tracker import ExecutionTracker
+from position_tracker import PositionTracker
 import server as grpc_server_module
+from session import IBSession, DEFAULT_IB_CLIENT_ID, DEFAULT_IB_HOST, DEFAULT_IB_PORT
 
 
 # Global handle to allow in-process code to access raw API (as opposed to using the gRPC layer)
@@ -202,10 +202,10 @@ def _parse_args(argv):
         argparse.Namespace - Parsed arguments.
     """
     p = argparse.ArgumentParser(description="Trading app entrypoint (shared IB + DB + gRPC).")
-    p.add_argument("--grpc-addr", default=os.getenv("GRPC_ADDR", "0.0.0.0:50051"))
-    p.add_argument("--ib-host", default=os.getenv("IB_HOST", "127.0.0.1"))
-    p.add_argument("--ib-port", type=int, default=int(os.getenv("IB_PORT", "7497")))
-    p.add_argument("--ib-client-id", type=int, default=int(os.getenv("IB_CLIENT_ID", "1")))
+    p.add_argument("--grpc-addr", default=grpc_server_module.DEFAULT_SERVER_ADDRESS)
+    p.add_argument("--ib-host", default=DEFAULT_IB_HOST)
+    p.add_argument("--ib-port", type=int, default=DEFAULT_IB_PORT)
+    p.add_argument("--ib-client-id", type=int, default=DEFAULT_IB_CLIENT_ID)
     p.add_argument("--enable-drainer", action="store_true", default=os.getenv("ENABLE_DRAINER", "0") == "1")
     p.add_argument("--drainer-worker-id", default="core-drainer")
     p.add_argument("--log-level", default=os.getenv("LOG_LEVEL", "INFO"))

@@ -16,7 +16,7 @@ from position_tracker import PositionTracker
 from session import IBSession
 
 
-SERVER_ADDRESS = f"[::]:{50057}"
+DEFAULT_SERVER_ADDRESS = os.environ.get("GRPC_SERVER_ADDRESS") or f"[::]:{50057}"
 
 logger = logging.getLogger(__name__)
 
@@ -267,12 +267,12 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         return _account_values_snapshot_to_response(snap)
 
 
-def serve(address=SERVER_ADDRESS, *, db=None, ib=None, api=None, position_tracker=None,
+def serve(address=DEFAULT_SERVER_ADDRESS, *, db=None, ib=None, api=None, position_tracker=None,
           execution_tracker=None, auto_connect=True, start_trackers=True, wait=True):
     """Start the gRPC server and wire dependencies.
 
     Args:
-        address: str - Optional server address. Default is SERVER_ADDRESS.
+        address: str - Optional server address. Default is DEFAULT_SERVER_ADDRESS.
 
         Optional kwargs for shared resources. "Shared" with other parts of the application.
         These should be passed if they've been created elsewhere, e.g. if there's a

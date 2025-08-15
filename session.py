@@ -12,10 +12,16 @@ try:
 except (TypeError, ValueError):
     DEFAULT_IB_PORT = 7497
 
+try:
+    DEFAULT_IB_CLIENT_ID = int(os.environ.get("IB_CLIENT_ID"))
+except (TypeError, ValueError):
+    DEFAULT_IB_CLIENT_ID = 1
+
+
 class IBSession:
     """Interactive Brokers session manager using ib_insync."""
 
-    def __init__(self, host=DEFAULT_IB_HOST, port=DEFAULT_IB_PORT, client_id=1):
+    def __init__(self, host=DEFAULT_IB_HOST, port=DEFAULT_IB_PORT, client_id=DEFAULT_IB_CLIENT_ID):
         """Initialize an IBSession instance.
 
         Args:
