@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tradr</title>
+    <link rel="stylesheet" href="static/css/test.css">
+  </head>
+  <body>
+    <h1>Test UI</h1>
+
+    <div class="card">
+      <div class="row">
+        <label for="grpc-endpoint-url-input"><strong>gRPC Endpoint:</strong></label>
+        <input id="grpc-endpoint-url-input" type="text" value="http://localhost:8080" />
+        <button id="connect-button">Connect</button>
+      </div>
+      <div id="connection-status-text" class="muted">Not Connected</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="row">
+          <strong>Positions</strong>
+          <button id="load-positions-button">Load</button>
+        </div>
+        <table id="positions-table">
+          <thead>
+            <tr>
+              <th>Account</th><th>Symbol</th><th>SecType</th><th>Exchange</th>
+              <th>conId</th><th>Position</th><th>AvgCost</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <strong>Account Values</strong>
+          <button id="load-account-values-button">Load</button>
+        </div>
+        <table id="account-values-table">
+          <thead>
+            <tr>
+              <th>Account</th><th>Tag</th><th>Currency</th><th>Value</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script src="static/js/bundle.js"></script>
+    <script src="static/js/test.js"></script>
+    <script>
+
+    </script>
+  </body>
+</html>
