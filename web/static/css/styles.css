@@ -43,8 +43,10 @@
     --font-20: 20px;
     --font-24: 24px;
 
-    /* Layout Widths */
+    /* Layout Dimension Limits */
     --container-max: 1800px;
+    --card-max-height-normal: 500px;
+    --card-max-height-tall: 1000px;
 }
 
 * {
@@ -355,6 +357,7 @@ body {
 
 .table-scroll {
     overflow: auto;
+    max-height: var(--card-max-height-tall);
 }
 
 .table {
@@ -428,4 +431,9 @@ body {
     align-items: center;
     gap: var(--space-3);
     color: var(--color-muted);
+}
+
+#notification-list {
+    overflow: scroll;
+    max-height: var(--card-max-height-normal);
 }
