@@ -7,7 +7,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;500;600;700;900&display=swap" rel="stylesheet">
+    <link  rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;500;600;700;900&display=swap">
 
     <link rel="stylesheet" href="/static/css/styles.css" />
 </head>
@@ -36,10 +36,8 @@
         </div>
     </header>
 
-    <!-- Page container -->
     <main id="dashboard-container">
 
-        <!-- KPI tiles -->
         <section id="kpi-tiles" class="tile-grid">
             <div class="tile tile--kpi">
                 <div class="tile-label">Realized PnL</div>
@@ -65,7 +63,6 @@
             <!-- Left column -->
             <div id="left-column" class="stack stack--lg">
 
-                <!-- Manual order card -->
                 <article id="manual-order-card" class="surface surface--elev-1">
                     <header class="section-header">
                         <h2 class="section-title">Manual Order</h2>
@@ -122,7 +119,7 @@
                 </article>
 
                 <!-- Algo status card -->
-                <article id="algo-status-card" class="surface surface--elev-1">
+                <article id="algo-status-card" class="surface surface--elev-1 hidden">
                     <header class="section-header">
                         <h2 class="section-title">Algo Status</h2>
                         <span id="algo-state-badge" class="badge badge--success">RUNNING</span>
@@ -228,7 +225,6 @@
                     </div>
                 </article>
 
-                <!-- Fills tape -->
                 <article id="fills-card" class="surface surface--elev-1">
                     <header class="section-header">
                         <h2 class="section-title">Fills</h2>
@@ -265,7 +261,6 @@
                     </div>
                 </article>
 
-                <!-- Positions + account values -->
                 <article id="portfolio-card" class="surface surface--elev-1">
                     <header class="section-header">
                         <h2 class="section-title">Positions &amp; Account Values</h2>
@@ -332,6 +327,9 @@
         </section>
 
     </main>
+
+    <script src="/static/js/bundle.js"></script>
+    <script src="/static/js/main.js"></script>
 
 </body>
 </html>
