@@ -7141,30 +7141,30 @@
   function orderRecordToObj(msg) {
     if (!msg) return {};
     return {
-      order_id: Number(msg.getOrderid()),
-      broker_order_id: Number(msg.getBrokerorderid()),
-      asset_class: msg.getAssetclass(),
+      order_id: Number(msg.getOrderId()),
+      broker_order_id: Number(msg.getBrokerOrderId()),
+      asset_class: msg.getAssetClass(),
       symbol: msg.getSymbol(),
       side: msg.getSide(),
       quantity: Number(msg.getQuantity()),
       status: msg.getStatus(),
-      avg_price: Number(msg.getAvgprice()),
-      filled_qty: Number(msg.getFilledqty()),
+      avg_price: Number(msg.getAvgPrice()),
+      filled_qty: Number(msg.getFilledQty()),
       message: msg.getMessage()
     };
   }
   function fillRecordToObj(msg) {
     if (!msg) return {};
     return {
-      fill_id: Number(msg.getFillid()),
-      order_id: Number(msg.getOrderid()),
-      exec_id: msg.getExecid(),
+      fill_id: Number(msg.getFillId()),
+      order_id: Number(msg.getOrderId()),
+      exec_id: msg.getExecId(),
       price: Number(msg.getPrice()),
-      filled_qty: Number(msg.getFilledqty()),
+      filled_qty: Number(msg.getFilledQty()),
       symbol: msg.getSymbol(),
       side: msg.getSide(),
       time: msg.getTime(),
-      broker_order_id: Number(msg.getBrokerorderid())
+      broker_order_id: Number(msg.getBrokerOrderId())
     };
   }
   function positionRecordToObj(msg) {
@@ -7174,7 +7174,7 @@
       symbol: msg.getSymbol(),
       sec_type: msg.getSectype(),
       exchange: msg.getExchange(),
-      con_id: Number(msg.getConid()),
+      con_id: Number(msg.getConId()),
       position: Number(msg.getPosition()),
       avg_cost: Number(msg.getAvgcost())
     };
@@ -7220,8 +7220,8 @@
       req.setQuantity(quantity);
       const resp = await this.client.placeStockOrder(req, this.metadata);
       return {
-        order_id: Number(resp.getOrderid()),
-        broker_order_id: Number(resp.getBrokerorderid()),
+        order_id: Number(resp.getOrderId()),
+        broker_order_id: Number(resp.getBrokerOrderId()),
         status: resp.getStatus(),
         message: resp.getMessage()
       };
@@ -7246,8 +7246,8 @@
       req.setQuantity(quantity);
       const resp = await this.client.placeOptionOrder(req, this.metadata);
       return {
-        order_id: Number(resp.getOrderid()),
-        broker_order_id: Number(resp.getBrokerorderid()),
+        order_id: Number(resp.getOrderId()),
+        broker_order_id: Number(resp.getBrokerOrderId()),
         status: resp.getStatus(),
         message: resp.getMessage()
       };
@@ -7307,7 +7307,7 @@
     async GetAccountValues() {
       const req = new messages.GetAccountValuesRequest();
       const resp = await this.client.getAccountValues(req, this.metadata);
-      const list = resp.getAccountvaluesList();
+      const list = resp.getAccountValuesList();
       return list.map(accountValueRecordToObj);
     }
   };
