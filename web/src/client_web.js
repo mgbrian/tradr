@@ -57,11 +57,11 @@ function positionRecordToObj(msg) {
   return {
     account: msg.getAccount(),
     symbol: msg.getSymbol(),
-    sec_type: msg.getSectype(),
+    sec_type: msg.getSecType(),
     exchange: msg.getExchange(),
     con_id: Number(msg.getConId()),
     position: Number(msg.getPosition()),
-    avg_cost: Number(msg.getAvgcost()),
+    avg_cost: Number(msg.getAvgCost()),
   };
 }
 
