@@ -5,3 +5,4 @@ env.py
 scratchpad.md
 /strategies
 /web/node_modules
+.DS_Store
