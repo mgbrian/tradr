@@ -46,6 +46,8 @@ class IBSession:
     def connect(self):
         """Connect to IB Gateway/TWS and pin the IB asyncio loop."""
         logger.info(f"Connecting to IB at {self.host}:{self.port} (clientId={self.client_id})...")
+        # Uncomment for debugging
+        # util.logToConsole('DEBUG')
 
         # Ensure a running asyncio loop for ib_insync (idempotent)
         util.startLoop()
