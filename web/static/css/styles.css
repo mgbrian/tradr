@@ -114,6 +114,16 @@ body {
 .tile-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
+}
+
+.tile-flex {
+    display: flex;
+    flex-direction: row;
+    /* TODO: wrap and scroll */
+}
+
+.tile-grid,
+.tile-flex {
     gap: var(--space-6);
     margin-bottom: var(--space-8);
 }
@@ -431,6 +441,21 @@ body {
     align-items: center;
     gap: var(--space-3);
     color: var(--color-muted);
+}
+
+/* --- Specific Element Styling --- */
+
+#kpi-tiles.tile-flex {
+    width: 100%;
+    gap: 0;
+    justify-content: space-between;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+#kpi-tiles .tile {
+    border: none;
 }
 
 #notification-list {
