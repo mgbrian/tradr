@@ -12,11 +12,24 @@ class TestIBSession(unittest.TestCase):
 
     def setUp(self):
         """Patch the IB class in session.py before each test."""
-        patcher = patch("session.IB")
-        self.addCleanup(patcher.stop)
-        self.mock_ib_class = patcher.start()
+        # Patch session.IB
+        patcher_ib = patch("session.IB")
+        self.addCleanup(patcher_ib.stop)
+        self.mock_ib_class = patcher_ib.start()
         self.mock_ib_instance = MagicMock()
         self.mock_ib_class.return_value = self.mock_ib_instance
+
+        # Patch session.util.startLoop and session.util.getLoop
+        self.sentinel_loop = object()
+        patcher_start = patch("session.util.startLoop")
+        patcher_get = patch("session.util.getLoop", return_value=self.sentinel_loop)
+        self.addCleanup(patcher_start.stop)
+        self.addCleanup(patcher_get.stop)
+        self.mock_start_loop = patcher_start.start()
+        self.mock_get_loop = patcher_get.start()
+
+        # Default: after connect(), IB reports connected
+        self.mock_ib_instance.isConnected.return_value = True
 
     # --- Basic behaviour
 
@@ -27,6 +40,11 @@ class TestIBSession(unittest.TestCase):
         self.mock_ib_instance.connect.assert_called_once_with(
             "127.0.0.1", 4002, clientId=123
         )
+        # Also verify loop start/pin happened
+        self.mock_start_loop.assert_called_once()
+        self.mock_get_loop.assert_called_once()
+        self.assertIs(session.loop, self.sentinel_loop)
+        self.assertIs(getattr(self.mock_ib_instance, "loop", None), self.sentinel_loop)
 
     def test_connect_raises_runtime_error_when_not_connected(self):
         """connect() should raise if IB.isConnected() is False after connect."""
@@ -36,6 +54,8 @@ class TestIBSession(unittest.TestCase):
             session.connect()
         # still should have attempted a connect call
         self.mock_ib_instance.connect.assert_called_once()
+        # startLoop was still invoked
+        self.mock_start_loop.assert_called_once()
 
     def test_disconnect_calls_ib_disconnect(self):
         """disconnect() should call IB.disconnect when currently connected."""
@@ -114,12 +134,23 @@ class TestIBSession(unittest.TestCase):
         """
         with patch.dict(os.environ, {"IB_HOST": "9.9.9.9", "IB_PORT": "4001", "IB_CLIENT_ID": "42"}, clear=True):
             mod = importlib.reload(session_module)
-            with patch.object(mod, "IB") as mod_ib:
-                mod_ib.return_value = MagicMock()
-                s = mod.IBSession()
-                self.assertEqual(s.host, "9.9.9.9")
-                self.assertEqual(s.port, 4001)
-                self.assertEqual(s.client_id, 42)
+            with patch.object(mod, "IB") as mod_ib, \
+                 patch.object(mod.util, "startLoop") as mod_start, \
+                 patch.object(mod.util, "getLoop") as mod_get:
+                mod_get.return_value = object()
+                mock_ib_instance = MagicMock()
+                mod_ib.return_value = mock_ib_instance
+                mock_ib_instance.isConnected.return_value = True
+                sess = mod.IBSession()
+                sess.connect()
+                self.assertEqual(sess.host, "9.9.9.9")
+                self.assertEqual(sess.port, 4001)
+                self.assertEqual(sess.client_id, 42)
+                mod_start.assert_called_once()
+                mod_get.assert_called_once()
+                # loop pinned onto both session and ib
+                self.assertIsNotNone(sess.loop)
+                self.assertIs(getattr(mock_ib_instance, "loop", None), sess.loop)
 
         # Empty strings should behave like None -> fall back to defaults
         with patch.dict(os.environ, {"IB_HOST": "", "IB_PORT": "", "IB_CLIENT_ID": ""}, clear=True):
@@ -144,13 +175,21 @@ class TestIBSession(unittest.TestCase):
         """
         with patch.dict(os.environ, {"IB_CLIENT_ID": "55"}, clear=True):
             mod = importlib.reload(session_module)
-            with patch.object(mod, "IB") as mod_ib:
+            with patch.object(mod, "IB") as mod_ib, \
+                 patch.object(mod.util, "startLoop") as mod_start, \
+                 patch.object(mod.util, "getLoop") as mod_get:
+                sentinel = object()
+                mod_get.return_value = sentinel
                 mock_ib_instance = MagicMock()
                 mod_ib.return_value = mock_ib_instance
                 sess = mod.IBSession(host="127.0.0.1", port=4002)  # no explicit client_id
                 mock_ib_instance.isConnected.return_value = True
                 sess.connect()
                 mock_ib_instance.connect.assert_called_once_with("127.0.0.1", 4002, clientId=55)
+                mod_start.assert_called_once()
+                mod_get.assert_called_once()
+                self.assertIs(sess.loop, sentinel)
+                self.assertIs(getattr(mock_ib_instance, "loop", None), sentinel)
 
 
 if __name__ == "__main__":
