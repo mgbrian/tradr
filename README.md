@@ -57,7 +57,7 @@ If this is the first time setting up the app:
     source .requirements/bin/activate && python utils/setup_test.py
     ```
 
-## Running the app
+## Running the App
 
 Run each of the following in a separate terminal:
 
@@ -72,3 +72,53 @@ envoy -c web/envoy.yaml
 ```
 python web/app.py
 ```
+
+## Advanced Usage
+
+The system uses certain singleton resources that must not be duplicated e.g. the connection to IB, in-memory database (and others).
+
+This has practical implications on programmatic interaction with the API (i.e. bypassing the web UI).
+
+### Scenario 1. The web UI is needed
+
+If the web UI is needed, you must start the whole system (using the instructions from the `Running the App` section):
+
+...then call the API via gRPC (you can't use the raw API in this case -- gRPC is pretty optimized anyway and this only adds minor overhead):
+
+### grpc_client_example.py
+
+```python
+from client import TradingClient
+
+with TradingClient("localhost:50057") as c:  # or whatever gRPC server address is declared in env.py
+    resp = c.place_stock_order("AAPL", "BUY", 100)
+    print(resp)
+
+# OR, to match the raw API (see Scenario 2 example below)
+api = TradingClient("localhost:50057")
+
+resp = api.place_stock_order("AAPL", "BUY", 100)
+print(resp)
+```
+
+This ensures a single IB session and consistent state shared by the UI and your scripts.
+
+For convenience, the gRPC client method signatures match the raw API (e.g. `place_stock_order(symbol, side, quantity)`), and both return plain Python dicts.
+
+### Scenario 2: The web UI is not needed
+
+If you don’t need the web UI, you can work directly with the raw API as follows:
+
+#### raw_api_example.py
+
+```python
+from runtime import get_app
+
+app = get_app() # starts IB session, trackers, API, gRPC server (once per process)
+api = app.api # same API used by the server
+
+resp = api.place_stock_order("AAPL", "BUY", 100)
+print(resp) # {'order_id': ..., 'broker_order_id': ..., 'status': 'SUBMITTED', 'message': ''}
+```
+
+Note that you can still make the calls over gRPC in this scenario (and skip the _minor_ additional overhead).
