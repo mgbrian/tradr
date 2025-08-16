@@ -40,9 +40,9 @@
       - Download page [here](https://www.interactivebrokers.com/en/trading/ibgateway-stable.php)
       - Installation and API setup [here](https://www.interactivebrokers.com/campus/ibkr-quant-news/interactive-brokers-gateway-install-setup/)
 
-1.  You can use `utils/test_setup.py` to verify connection settings. Edit it with your connection settings and run:
+1.  You can use `utils/setup_test.py` to verify connection settings. Edit it with your connection settings and run:
 
-    `source .requirements/bin/activate && python utils/test_setup.py`
+    `source .requirements/bin/activate && python utils/setup_test.py`
 
 ### Running the app
 
