@@ -3,7 +3,7 @@ import os
 
 # Interactive Brokers Settings
 os.environ.setdefault("IB_HOST", "") # Usually localhost.
-os.environ.setdefault("IB_PORT", "") # Usual defaults: 7497 - paper trading, 7496 - live.
+os.environ.setdefault("IB_PORT", "") # Usual defaults - TWS paper: 7497, TWS live: 7496, IBG paper: 4002, IBG live: 4001
 os.environ.setdefault("IB_CLIENT_ID", "") # An arbitrary number unique across connected clients. "1" is OK if this is the only one.
 
 # Make this a long, unpredictable value.
