@@ -2,7 +2,7 @@
 
 Update settings below and run:
 
-    source .requirements/bin/activate && python test_setup.py
+    source .requirements/bin/activate && python setup_test.py
 """
 from ib_insync import IB
 
