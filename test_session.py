@@ -110,7 +110,7 @@ class TestIBSession(unittest.TestCase):
 
     def test_constructor_uses_module_defaults_from_env_when_args_omitted(self):
         """IBSession() with no args should pick up the module defaults derived from environment.
-           Use a fresh reload and patch that module's IB to avoid importing the real ib_insync.IB.
+           Use a fresh reload and patch that module's IB to avoid importing the real ib_async.IB.
         """
         with patch.dict(os.environ, {"IB_HOST": "9.9.9.9", "IB_PORT": "4001", "IB_CLIENT_ID": "42"}, clear=True):
             mod = importlib.reload(session_module)

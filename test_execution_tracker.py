@@ -14,7 +14,7 @@ from execution_tracker import ExecutionTracker
 
 
 class FakeEvent:
-    """Minimal ib_insync.Event test double supporting +=, -=, remove(), len(), indexing, and call."""
+    """Minimal ib_async.Event test double supporting +=, -=, remove(), len(), indexing, and call."""
     def __init__(self):
         self._handlers = []
 

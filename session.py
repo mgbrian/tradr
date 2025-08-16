@@ -9,7 +9,7 @@ TODO:
 import logging
 import os
 
-from ib_insync import IB, util
+from ib_async import IB, util
 
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ except (TypeError, ValueError):
 
 
 class IBSession:
-    """Interactive Brokers session manager using ib_insync."""
+    """Interactive Brokers session manager using ib_async."""
 
     def __init__(self, host=DEFAULT_IB_HOST, port=DEFAULT_IB_PORT, client_id=DEFAULT_IB_CLIENT_ID):
         """Initialize an IBSession instance.
@@ -49,7 +49,7 @@ class IBSession:
         # Uncomment for debugging
         # util.logToConsole('DEBUG')
 
-        # Ensure a running asyncio loop for ib_insync (idempotent)
+        # Ensure a running asyncio loop for ib_async (idempotent)
         util.startLoop()
 
         # Connect (sync path is fine here)
@@ -58,7 +58,7 @@ class IBSession:
         if not self.ib.isConnected():
             raise RuntimeError("Failed to connect to IB Gateway/TWS")
 
-        # Pin the loop used by ib_insync so other threads can target it
+        # Pin the loop used by ib_async so other threads can target it
         self.loop = util.getLoop()
         setattr(self.ib, 'loop', self.loop)  # OrderManager will read this
 

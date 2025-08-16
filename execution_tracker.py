@@ -20,7 +20,7 @@ class ExecutionTracker:
         """Initialize the ExecutionTracker.
 
         Args:
-            ib: IB - An active ib_insync.IB instance (events source).
+            ib: IB - An active ib_async.IB instance (events source).
             db: InMemoryDB - Persistence layer for orders/fills/aggregates.
         """
         self.ib = ib
@@ -53,8 +53,8 @@ class ExecutionTracker:
             """On execDetailsEvent, persist a fill and update aggregates.
 
             Args:
-                trade: Trade - ib_insync Trade object (has .order, .contract).
-                fill: Fill - ib_insync Fill object (has .execution, .commissionReport optional).
+                trade: Trade - ib_async Trade object (has .order, .contract).
+                fill: Fill - ib_async Fill object (has .execution, .commissionReport optional).
             """
             try:
                 self._on_exec_details(trade, fill)
@@ -66,8 +66,8 @@ class ExecutionTracker:
             """On commissionReportEvent, update commission and realized P&L.
 
             Args:
-                trade: Trade - ib_insync Trade object.
-                comm_report: CommissionReport - ib_insync object with commission, realizedPNL.
+                trade: Trade - ib_async Trade object.
+                comm_report: CommissionReport - ib_async object with commission, realizedPNL.
             """
             try:
                 self._on_commission_report(trade, comm_report)
@@ -79,7 +79,7 @@ class ExecutionTracker:
             """On orderStatusEvent, update order aggregates/status.
 
             Args:
-                trade: Trade - ib_insync Trade object with .orderStatus fields.
+                trade: Trade - ib_async Trade object with .orderStatus fields.
             """
             try:
                 self._on_order_status(trade)
@@ -129,8 +129,8 @@ class ExecutionTracker:
         """Persist a fill and update basic order aggregates.
 
         Args:
-            trade: Trade - ib_insync Trade object including .order, .orderId and .contract.
-            fill: Fill - ib_insync Fill with .execution (price, shares, time, execId, etc.).
+            trade: Trade - ib_async Trade object including .order, .orderId and .contract.
+            fill: Fill - ib_async Fill with .execution (price, shares, time, execId, etc.).
         """
         order = getattr(trade, 'order', None)
         broker_order_id = getattr(order, 'orderId', None)
@@ -181,7 +181,7 @@ class ExecutionTracker:
         """Update commission and realized P&L on the order record.
 
         Args:
-            trade: Trade - ib_insync Trade object.
+            trade: Trade - ib_async Trade object.
             comm_report: CommissionReport - commission and realizedPNL.
         """
         order = getattr(trade, 'order', None)
@@ -208,7 +208,7 @@ class ExecutionTracker:
         """Update order status and aggregates from orderStatusEvent.
 
         Args:
-            trade: Trade - ib_insync Trade with .orderStatus (status, filled, remaining, avgFillPrice).
+            trade: Trade - ib_async Trade with .orderStatus (status, filled, remaining, avgFillPrice).
         """
         order = getattr(trade, 'order', None)
         status = getattr(trade, 'orderStatus', None)

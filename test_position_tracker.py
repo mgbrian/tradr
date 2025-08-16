@@ -207,7 +207,7 @@ class TestPositionTrackerWithDB(unittest.TestCase):
         self.ib = MagicMock()
         self.db = MagicMock()
 
-        # Events as ib_insync-like objects
+        # Events as ib_async-like objects
         self.ib.positionEvent = FakeEvent()
         self.ib.accountValueEvent = FakeEvent()
 

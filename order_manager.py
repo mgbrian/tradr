@@ -18,7 +18,7 @@ TODO:
 """
 import asyncio
 
-from ib_insync import MarketOrder
+from ib_async import MarketOrder
 from contracts import OptionType, create_stock_contract, create_option_contract
 
 
@@ -29,7 +29,7 @@ class OrderManager:
         """Initialize the OrderManager.
 
         Args:
-            ib: IB - An active ib_insync.IB instance for submitting orders.
+            ib: IB - An active ib_async.IB instance for submitting orders.
         """
         self._default_timeout = float(default_timeout)
         self.ib = ib
@@ -41,16 +41,16 @@ class OrderManager:
         for the result from any calling thread (e.g., gRPC worker).
 
         Args:
-            contract: Contract - ib_insync Contract to place.
-            order: Order - ib_insync Order to place.
+            contract: Contract - ib_async Contract to place.
+            order: Order - ib_async Order to place.
             timeout: float (Optional) - Seconds to wait. Uses default if None.
 
         Returns:
-            Trade - ib_insync Trade object.
+            Trade - ib_async Trade object.
 
         Raises:
             RuntimeError - If IB loop is unavailable or the call times out.
-            Exception - Any broker error raised by ib_insync.
+            Exception - Any broker error raised by ib_async.
         """
         loop = getattr(self.ib, 'loop', None)
         if loop is None:
@@ -70,7 +70,7 @@ class OrderManager:
             quantity: int - Number of shares to buy.
 
         Returns:
-            Trade - The ib_insync Trade handle.
+            Trade - The ib_async Trade handle.
         """
         # TODO: Should we validate quantity here or is that handled at  a lower level?
         contract = create_stock_contract(symbol)
@@ -85,7 +85,7 @@ class OrderManager:
             quantity: int - Number of shares to sell.
 
         Returns:
-            Trade - The ib_insync Trade handle.
+            Trade - The ib_async Trade handle.
         """
         contract = create_stock_contract(symbol)
         order = MarketOrder('SELL', quantity)
@@ -99,7 +99,7 @@ class OrderManager:
             quantity: int - Number of shares to short.
 
         Returns:
-            Trade - The ib_insync Trade handle.
+            Trade - The ib_async Trade handle.
         """
         contract = create_stock_contract(symbol)
         order = MarketOrder('SELL', quantity)
@@ -114,7 +114,7 @@ class OrderManager:
             quantity: int - Number of shares to cover.
 
         Returns:
-            Trade - The ib_insync Trade handle.
+            Trade - The ib_async Trade handle.
         """
         contract = create_stock_contract(symbol)
         order = MarketOrder('BUY', quantity)
@@ -131,7 +131,7 @@ class OrderManager:
             quantity: int - Number of option contracts to buy.
 
         Returns:
-            Trade - The ib_insync Trade handle.
+            Trade - The ib_async Trade handle.
 
         Raises:
             ValueError - If `right` is not 'C' or 'P'.
@@ -154,7 +154,7 @@ class OrderManager:
             quantity: int - Number of option contracts to sell.
 
         Returns:
-            Trade - The ib_insync Trade handle.
+            Trade - The ib_async Trade handle.
 
         Raises:
             ValueError - If `right` is not 'C' or 'P'.

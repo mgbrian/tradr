@@ -3,7 +3,7 @@
 Provides helpers to build Stock and Option contracts with validation.
 """
 
-from ib_insync import Stock, Option
+from ib_async import Stock, Option
 from enum import Enum
 
 

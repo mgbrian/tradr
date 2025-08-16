@@ -88,7 +88,7 @@ class TradingAPI:
         """Initialize the TradingAPI.
 
         Args:
-            ib: IB - An active ib_insync.IB instance.
+            ib: IB - An active ib_async.IB instance.
             db: InMemoryDB - Our in-memory persistence layer.
             order_manager: OrderManager (Optional) - If not provided, a new instance is created with ib.
             position_tracker: PositionTracker (Optional) - If not provided, a new instance is created with ib.

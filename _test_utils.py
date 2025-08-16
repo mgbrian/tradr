@@ -1,7 +1,7 @@
 """Useful utilities used by multiple test modules."""
 
 class FakeEvent:
-    """ib_insync.Event test double supporting +=, -=, remove(), len(), and indexing."""
+    """ib_async.Event test double supporting +=, -=, remove(), len(), and indexing."""
     def __init__(self):
         self._handlers = []
 

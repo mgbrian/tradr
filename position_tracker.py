@@ -32,7 +32,7 @@ class PositionTracker:
         """Initialize the PositionTracker.
 
         Args:
-            ib: IB - An active ib_insync.IB instance to register event handlers on.
+            ib: IB - An active ib_async.IB instance to register event handlers on.
             db: InMemoryDB (Optional) - If provided, persist positions/account values on updates.
         """
         self.ib = ib
@@ -56,7 +56,7 @@ class PositionTracker:
 
         Args:
             account: str - IB account identifier.
-            contract: Contract - ib_insync Contract object for the position.
+            contract: Contract - ib_async Contract object for the position.
             position: float - Net position quantity (positive -> long, negative -> short).
             avgCost: float - Average cost of the position.
         """
@@ -164,7 +164,7 @@ class PositionTracker:
         # Request initial snapshot (synchronous calls)
         try:
             for pos in self.ib.positions():
-                # ib_insync Position has attributes: account, contract, position, avgCost
+                # ib_async Position has attributes: account, contract, position, avgCost
                 account, contract = pos.account, pos.contract
                 position, avgCost = pos.position, pos.avgCost
 
@@ -175,7 +175,7 @@ class PositionTracker:
 
         try:
             for av in self.ib.accountValues():
-                # ib_insync AccountValue has fields: account, tag, value, currency
+                # ib_async AccountValue has fields: account, tag, value, currency
                 account, tag, value, currency = av.account, av.tag, av.value, av.currency
                 self._on_account_value(account, tag, value, currency)
 
@@ -198,7 +198,7 @@ class PositionTracker:
             return False
 
         try:
-            # Safe remove (ib_insync Events behave like lists)
+            # Safe remove (ib_async Events behave like lists)
             self.ib.positionEvent.remove(self._position_handler)
             self.ib.accountValueEvent.remove(self._account_value_handler)
 
@@ -218,7 +218,7 @@ class PositionTracker:
             dict - Mapping position_key -> position dict, where each dict has
                 the following keys:
                 'account': str - Account id.
-                'contract': Contract - ib_insync contract object.
+                'contract': Contract - ib_async contract object.
                 'position': float - Quantity (positive for long, negative for short).
                 'avgCost': float - Average cost per unit.
         """

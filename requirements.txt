@@ -1,4 +1,4 @@
-ib_insync
+ib_async
 
 grpcio
 grpcio-tools
