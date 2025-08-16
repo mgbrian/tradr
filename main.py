@@ -271,16 +271,6 @@ def main(argv=None):
 
         return 1
 
-    except KeyboardInterrupt:
-        logging.info("KeyboardInterrupt.")
-        try:
-            app.shutdown()
-            return 0
-
-        except Exception as e:
-            logging.exception(f"Error encountered while shutting down: {e}")
-            return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())
