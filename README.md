@@ -1,8 +1,10 @@
 # TRADR
 
-## How to Run
+## Setup
 
-### Install dependencies if this is the first time running the app
+If this is the first time setting up the app:
+
+### Install Dependencies
 
 1. Make the install, build, test, and start scripts executable:
 
@@ -21,7 +23,7 @@
    - TODO: Add these to install script. Also add note to have Homebrew installed if on macOS.
    - TODO: Update this part once Dockerized.
 
-1. Compile service proto
+1. Compile service dependencies
 
    `./build.sh`
 
@@ -47,9 +49,7 @@
 
     `source .requirements/bin/activate && python utils/setup_test.py`
 
-### Running the app
-
-Skip to this step if all of the above steps have been completed before.
+## Running the app
 
 Run each of the following in a separate terminal:
 
