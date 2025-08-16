@@ -26,6 +26,7 @@
     --space-6: 24px;
     --space-8: 32px;
     --space-10: 40px;
+    --space-12: 48px;
 
     /* Radius & Shadow */
     --radius-sm: 6px;
@@ -109,6 +110,7 @@ body {
     max-width: var(--container-max);
     margin: var(--space-6) auto;
     padding: 0 var(--space-6);
+    padding-bottom: var(--space-12);
 }
 
 .tile-grid {
