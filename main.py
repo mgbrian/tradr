@@ -33,6 +33,14 @@ import signal
 import sys
 import time
 
+# Do this before everything else as it sets env variables used throughout the app.
+try:
+    import env
+
+except ImportError:
+    logging.error("env.py not found. Create and populate it based on sample_env.py.")
+    sys.exit(1)
+
 from api import TradingAPI
 from db.inmemorydb import InMemoryDB
 from execution_tracker import ExecutionTracker
@@ -49,16 +57,23 @@ APP = None
 class App:
     """Owns shared state and the gRPC server lifecycle."""
 
-    def __init__(self, grpc_addr, ib_host, ib_port, ib_client_id, enable_drainer=False, drainer_worker_id='core-drainer'):
+    def __init__(self,
+                 grpc_addr=grpc_server_module.DEFAULT_SERVER_ADDRESS,
+                 ib_host=DEFAULT_IB_HOST,
+                 ib_port=DEFAULT_IB_PORT,
+                 ib_client_id=DEFAULT_IB_CLIENT_ID,
+                 enable_drainer=False,
+                 drainer_worker_id="core-drainer"):
         """Initialize the App container.
 
         Args:
-            grpc_addr: str - Full address for the gRPC server, e.g. "<host>:<port>" or a unix socket.
-            ib_host: str - IB Gateway/TWS host.
-            ib_port: int - IB Gateway/TWS port.
-            ib_client_id: int - IB API client id.
-            enable_drainer: bool - Start Django outbox drainer if available.
-            drainer_worker_id: str - Worker id tag for checkpointing.
+            grpc_addr: str (Optional) - Full address for the gRPC server,
+                e.g. "<host>:<port>" or a unix socket. Default = server.DEFAULT_SERVER_ADDRESS.
+            ib_host: str (Optional) - IB Gateway/TWS host. Default = session.DEFAULT_IB_HOST.
+            ib_port: int (Optional) - IB Gateway/TWS port. Default = session.DEFAULT_IB_PORT.
+            ib_client_id: int (Optional) - IB API client id. Default = session.DEFAULT_IB_CLIENT_ID.
+            enable_drainer: bool (Optional) - Start Django outbox drainer if available. Default = False
+            drainer_worker_id: str (Optional) - Worker id tag for checkpointing. Default = "core-drainer"
         """
         self.grpc_addr = grpc_addr
         self.ib_host = ib_host
