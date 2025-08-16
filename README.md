@@ -15,9 +15,11 @@
 1. Look out for any final instructions output by the installer (e.g. to update env variables) and complete the TODO list before moving onto the next step.
    - One of the items in the TODO list will be to populate the generated `env.py` file. This contains important configuration values that must be populated in-order for the application to work properly. Read the IB section below for how to get the IB-related settings.
 
-1. Ensure `npm`, `protoc`, and the necessary gRPC Web plugins are installed before moving onto the next step.
-   - See https://github.com/grpc/grpc-web?tab=readme-ov-file#code-generator-plugins
+1. Ensure `envoy`, `npm`, `protoc`, and the necessary gRPC Web plugins are installed before moving onto the next step.
+   - For Envoy, see http://envoyproxy.io/docs/envoy/latest/start/install
+   - For the gRPC dependencies, see https://github.com/grpc/grpc-web?tab=readme-ov-file#code-generator-plugins
    - TODO: Add these to install script. Also add note to have Homebrew installed if on macOS.
+   - TODO: Update this part once Dockerized.
 
 1. Compile service proto
 
@@ -47,6 +49,12 @@
 
 ### Running the app
 
-Skip to this step if all of the above steps have been completed before:
+Skip to this step if all of the above steps have been completed before.
+
+Run each of the following in a separate terminal:
 
 `./start.sh`
+
+`envoy -c web/envoy.yaml`
+
+`python web/app.py`
