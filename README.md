@@ -8,11 +8,15 @@ If this is the first time setting up the app:
 
 1. Make the install, build, test, and start scripts executable:
 
-   `chmod +x install.sh build.sh test.sh start.sh`
+   ```
+   chmod +x install.sh build.sh test.sh start.sh
+   ```
 
 1. Run the install script
 
-   `./install.sh`
+   ```
+   ./install.sh
+   ```
 
 1. Look out for any final instructions output by the installer (e.g. to update env variables) and complete the TODO list before moving onto the next step.
    - One of the items in the TODO list will be to populate the generated `env.py` file. This contains important configuration values that must be populated in-order for the application to work properly. Read the IB section below for how to get the IB-related settings.
@@ -25,7 +29,9 @@ If this is the first time setting up the app:
 
 1. Compile service dependencies
 
-   `./build.sh`
+   ```
+   ./build.sh
+   ```
 
 ### Set Up IB to Accept API Connections
 
@@ -47,14 +53,22 @@ If this is the first time setting up the app:
 
 1.  You can use `utils/setup_test.py` to verify connection settings. Edit it with your connection settings and run:
 
-    `source .requirements/bin/activate && python utils/setup_test.py`
+    ```
+    source .requirements/bin/activate && python utils/setup_test.py
+    ```
 
 ## Running the app
 
 Run each of the following in a separate terminal:
 
-`./start.sh`
+```
+./start.sh
+```
 
-`envoy -c web/envoy.yaml`
+```
+envoy -c web/envoy.yaml
+```
 
-`python web/app.py`
+```
+python web/app.py
+```
