@@ -32,6 +32,7 @@
     - Allow socket connections.
     - Disable _Read Only_ mode.
     - Get the Socket Port number and add it to the `env.py` file generated in the install step. Note that this number will usually be different depending on whether you're in Live or Paper Trading mode. Update it when you change modes.
+    - Detailed reference article [here](https://interactivebrokers.github.io/tws-api/initial_setup.html).
 
     - **TWS**
       - Installation and API setup instructions [here](https://www.interactivebrokers.com/campus/trading-lessons/installing-configuring-tws-for-the-api)
