@@ -65,14 +65,6 @@ Run each of the following in a separate terminal:
 ./start.sh
 ```
 
-```
-envoy -c web/envoy.yaml
-```
-
-```
-python web/app.py
-```
-
 ## Advanced Usage
 
 The system uses certain singleton resources that must not be duplicated e.g. the connection to IB, in-memory database (and others).

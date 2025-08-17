@@ -11,4 +11,4 @@ fi
 
 source $VENV_DIR/bin/activate || { echo "Error activating virtualenv."; exit 1; }
 
-python main.py
+honcho start
