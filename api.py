@@ -18,7 +18,7 @@ TODO:
 
 ********************
 ** IMPORTANT NOTE **
-This should not be used directly. Use the handle exposed by main. See note in main.py.
+This should not be used directly. Use the app handle exposed in runtime.py. See README > Advanced Usage.
 ********************
 """
 
