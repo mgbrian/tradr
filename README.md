@@ -75,7 +75,7 @@ This has practical implications on programmatic interaction with the API (i.e. b
 
 If the web UI is needed, you must start the whole system (using the instructions from the `Running the App` section):
 
-...then call the API via gRPC (you can't use the raw API in this case -- gRPC is pretty optimized anyway and this only adds minor overhead):
+...then call the API via gRPC (you can't use the raw API in this case -- gRPC is pretty optimized anyway and only adds minor overhead):
 
 ### grpc_client_example.py
 
@@ -107,7 +107,7 @@ If you don’t need the web UI, you can work directly with the raw API as follow
 from runtime import get_app
 
 app = get_app() # starts IB session, trackers, API, gRPC server (once per process)
-api = app.api # same API used by the server
+api = app.api # same API used by the gRPC server
 
 resp = api.place_stock_order("AAPL", "BUY", 100)
 print(resp) # {'order_id': ..., 'broker_order_id': ..., 'status': 'SUBMITTED', 'message': ''}
