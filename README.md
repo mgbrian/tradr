@@ -59,8 +59,6 @@ If this is the first time setting up the app:
 
 ## Running the App
 
-Run each of the following in a separate terminal:
-
 ```
 ./start.sh
 ```
