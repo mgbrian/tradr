@@ -35,13 +35,13 @@ If this is the first time setting up the app:
 
 ### Set Up IB to Accept API Connections
 
-1.  Set up TWS or IB Gateway. The process it the same for paper or live accounts:
+1.  Set up TWS or IB Gateway. The process is the same for paper or live accounts:
     - Either TWS or IB Gateway work just fine for this, and the process for API connection/setup for either is similar. The key difference between them is that TWS is a full trading platform while IB Gateway is a lighter-weight application focused on providing API access.
 
     For either, your goal is to do the following (from `Settings > API`):
     - Allow socket connections.
     - Disable _Read Only_ mode.
-    - Get the Socket Port number and add it to the `env.py` file generated in the install step. Note that this number will usually be different depending on whether you're in Live or Paper Trading mode. Update it when you change modes.
+    - Get the Socket Port number and add it to the `env.py` file generated in the install step. Note that there will usually be two different port numbers for Live and Paper Trading mode. Update it when you change modes.
     - Detailed reference article [here](https://interactivebrokers.github.io/tws-api/initial_setup.html).
 
     - **TWS**
