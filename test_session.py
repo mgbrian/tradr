@@ -7,9 +7,36 @@ import session as session_module
 from session import IBSession
 
 
+class FakeLoop:
+    """Small helper providing a minimal loop interface used by session.py"""
+    def __init__(self):
+        self._running = False
+        self._closed = False
+
+    def is_running(self):
+        return self._running
+
+    def run_forever(self):
+        # In tests we just flip the flag; returning immediately is fine
+        # because session.connect() only needs to see is_running() become True.
+        self._running = True
+
+    def call_soon_threadsafe(self, cb, *args, **kwargs):
+        # Execute immediately (sufficient for unit tests)
+        cb(*args, **kwargs)
+
+    def stop(self):
+        self._running = False
+
+    def is_closed(self):
+        return self._closed
+
+    def close(self):
+        self._closed = True
+
+
 class TestIBSession(unittest.TestCase):
     """Unit tests for IBSession using a mocked IB instance."""
-
     def setUp(self):
         """Patch the IB class in session.py before each test."""
         # Patch session.IB
@@ -19,13 +46,10 @@ class TestIBSession(unittest.TestCase):
         self.mock_ib_instance = MagicMock()
         self.mock_ib_class.return_value = self.mock_ib_instance
 
-        # Patch session.util.startLoop and session.util.getLoop
-        self.sentinel_loop = object()
-        patcher_start = patch("session.util.startLoop")
-        patcher_get = patch("session.util.getLoop", return_value=self.sentinel_loop)
-        self.addCleanup(patcher_start.stop)
+        # Patch session.util.getLoop to return a fake loop with the methods we need
+        self.fake_loop = FakeLoop()
+        patcher_get = patch("session.util.getLoop", return_value=self.fake_loop)
         self.addCleanup(patcher_get.stop)
-        self.mock_start_loop = patcher_start.start()
         self.mock_get_loop = patcher_get.start()
 
         # Default: after connect(), IB reports connected
@@ -40,11 +64,12 @@ class TestIBSession(unittest.TestCase):
         self.mock_ib_instance.connect.assert_called_once_with(
             "127.0.0.1", 4002, clientId=123
         )
-        # Also verify loop start/pin happened
-        self.mock_start_loop.assert_called_once()
+        # Verify loop was obtained and pinned
         self.mock_get_loop.assert_called_once()
-        self.assertIs(session.loop, self.sentinel_loop)
-        self.assertIs(getattr(self.mock_ib_instance, "loop", None), self.sentinel_loop)
+        self.assertIs(session.loop, self.fake_loop)
+        self.assertIs(getattr(self.mock_ib_instance, "loop", None), self.fake_loop)
+        # With our FakeLoop, run_forever() sets running=True immediately
+        self.assertTrue(self.fake_loop.is_running())
 
     def test_connect_raises_runtime_error_when_not_connected(self):
         """connect() should raise if IB.isConnected() is False after connect."""
@@ -54,8 +79,8 @@ class TestIBSession(unittest.TestCase):
             session.connect()
         # still should have attempted a connect call
         self.mock_ib_instance.connect.assert_called_once()
-        # startLoop was still invoked
-        self.mock_start_loop.assert_called_once()
+        # Since connect failed early, we should NOT have fetched/started the loop
+        self.mock_get_loop.assert_not_called()
 
     def test_disconnect_calls_ib_disconnect(self):
         """disconnect() should call IB.disconnect when currently connected."""
@@ -135,9 +160,8 @@ class TestIBSession(unittest.TestCase):
         with patch.dict(os.environ, {"IB_HOST": "9.9.9.9", "IB_PORT": "4001", "IB_CLIENT_ID": "42"}, clear=True):
             mod = importlib.reload(session_module)
             with patch.object(mod, "IB") as mod_ib, \
-                 patch.object(mod.util, "startLoop") as mod_start, \
                  patch.object(mod.util, "getLoop") as mod_get:
-                mod_get.return_value = object()
+                mod_get.return_value = FakeLoop()
                 mock_ib_instance = MagicMock()
                 mod_ib.return_value = mock_ib_instance
                 mock_ib_instance.isConnected.return_value = True
@@ -146,7 +170,6 @@ class TestIBSession(unittest.TestCase):
                 self.assertEqual(sess.host, "9.9.9.9")
                 self.assertEqual(sess.port, 4001)
                 self.assertEqual(sess.client_id, 42)
-                mod_start.assert_called_once()
                 mod_get.assert_called_once()
                 # loop pinned onto both session and ib
                 self.assertIsNotNone(sess.loop)
@@ -170,15 +193,12 @@ class TestIBSession(unittest.TestCase):
     # --- connect() uses provided client_id correctly
 
     def test_connect_uses_client_id_from_env_default_when_not_overridden(self):
-        """
-        Ensure connect() uses the client_id derived from env defaults when none is passed.
-        """
+        """Ensure connect() uses the client_id derived from env defaults when none is passed."""
         with patch.dict(os.environ, {"IB_CLIENT_ID": "55"}, clear=True):
             mod = importlib.reload(session_module)
             with patch.object(mod, "IB") as mod_ib, \
-                 patch.object(mod.util, "startLoop") as mod_start, \
                  patch.object(mod.util, "getLoop") as mod_get:
-                sentinel = object()
+                sentinel = FakeLoop()
                 mod_get.return_value = sentinel
                 mock_ib_instance = MagicMock()
                 mod_ib.return_value = mock_ib_instance
@@ -186,7 +206,6 @@ class TestIBSession(unittest.TestCase):
                 mock_ib_instance.isConnected.return_value = True
                 sess.connect()
                 mock_ib_instance.connect.assert_called_once_with("127.0.0.1", 4002, clientId=55)
-                mod_start.assert_called_once()
                 mod_get.assert_called_once()
                 self.assertIs(sess.loop, sentinel)
                 self.assertIs(getattr(mock_ib_instance, "loop", None), sentinel)
