@@ -4862,6 +4862,8 @@
         return this;
       }).call(null) || Function("return this")();
       goog.exportSymbol("proto.tradr.AccountValueRecord", null, global2);
+      goog.exportSymbol("proto.tradr.CancelOrderRequest", null, global2);
+      goog.exportSymbol("proto.tradr.CancelOrderResponse", null, global2);
       goog.exportSymbol("proto.tradr.FillRecord", null, global2);
       goog.exportSymbol("proto.tradr.GetAccountValuesRequest", null, global2);
       goog.exportSymbol("proto.tradr.GetAccountValuesResponse", null, global2);
@@ -4897,6 +4899,20 @@
       goog.inherits(proto.tradr.PlaceOrderResponse, jspb.Message);
       if (goog.DEBUG && !COMPILED) {
         proto.tradr.PlaceOrderResponse.displayName = "proto.tradr.PlaceOrderResponse";
+      }
+      proto.tradr.CancelOrderRequest = function(opt_data) {
+        jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+      };
+      goog.inherits(proto.tradr.CancelOrderRequest, jspb.Message);
+      if (goog.DEBUG && !COMPILED) {
+        proto.tradr.CancelOrderRequest.displayName = "proto.tradr.CancelOrderRequest";
+      }
+      proto.tradr.CancelOrderResponse = function(opt_data) {
+        jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+      };
+      goog.inherits(proto.tradr.CancelOrderResponse, jspb.Message);
+      if (goog.DEBUG && !COMPILED) {
+        proto.tradr.CancelOrderResponse.displayName = "proto.tradr.CancelOrderResponse";
       }
       proto.tradr.GetOrderRequest = function(opt_data) {
         jspb.Message.initialize(this, opt_data, 0, -1, null, null);
@@ -5606,6 +5622,182 @@
       };
       proto.tradr.PlaceOrderResponse.prototype.setMessage = function(value) {
         return jspb.Message.setProto3StringField(this, 4, value);
+      };
+      if (jspb.Message.GENERATE_TO_OBJECT) {
+        proto.tradr.CancelOrderRequest.prototype.toObject = function(opt_includeInstance) {
+          return proto.tradr.CancelOrderRequest.toObject(opt_includeInstance, this);
+        };
+        proto.tradr.CancelOrderRequest.toObject = function(includeInstance, msg) {
+          var f, obj = {
+            orderId: jspb.Message.getFieldWithDefault(msg, 1, 0)
+          };
+          if (includeInstance) {
+            obj.$jspbMessageInstance = msg;
+          }
+          return obj;
+        };
+      }
+      proto.tradr.CancelOrderRequest.deserializeBinary = function(bytes) {
+        var reader = new jspb.BinaryReader(bytes);
+        var msg = new proto.tradr.CancelOrderRequest();
+        return proto.tradr.CancelOrderRequest.deserializeBinaryFromReader(msg, reader);
+      };
+      proto.tradr.CancelOrderRequest.deserializeBinaryFromReader = function(msg, reader) {
+        while (reader.nextField()) {
+          if (reader.isEndGroup()) {
+            break;
+          }
+          var field = reader.getFieldNumber();
+          switch (field) {
+            case 1:
+              var value = (
+                /** @type {number} */
+                reader.readInt64()
+              );
+              msg.setOrderId(value);
+              break;
+            default:
+              reader.skipField();
+              break;
+          }
+        }
+        return msg;
+      };
+      proto.tradr.CancelOrderRequest.prototype.serializeBinary = function() {
+        var writer = new jspb.BinaryWriter();
+        proto.tradr.CancelOrderRequest.serializeBinaryToWriter(this, writer);
+        return writer.getResultBuffer();
+      };
+      proto.tradr.CancelOrderRequest.serializeBinaryToWriter = function(message, writer) {
+        var f = void 0;
+        f = message.getOrderId();
+        if (f !== 0) {
+          writer.writeInt64(
+            1,
+            f
+          );
+        }
+      };
+      proto.tradr.CancelOrderRequest.prototype.getOrderId = function() {
+        return (
+          /** @type {number} */
+          jspb.Message.getFieldWithDefault(this, 1, 0)
+        );
+      };
+      proto.tradr.CancelOrderRequest.prototype.setOrderId = function(value) {
+        return jspb.Message.setProto3IntField(this, 1, value);
+      };
+      if (jspb.Message.GENERATE_TO_OBJECT) {
+        proto.tradr.CancelOrderResponse.prototype.toObject = function(opt_includeInstance) {
+          return proto.tradr.CancelOrderResponse.toObject(opt_includeInstance, this);
+        };
+        proto.tradr.CancelOrderResponse.toObject = function(includeInstance, msg) {
+          var f, obj = {
+            ok: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+            status: jspb.Message.getFieldWithDefault(msg, 2, ""),
+            message: jspb.Message.getFieldWithDefault(msg, 3, "")
+          };
+          if (includeInstance) {
+            obj.$jspbMessageInstance = msg;
+          }
+          return obj;
+        };
+      }
+      proto.tradr.CancelOrderResponse.deserializeBinary = function(bytes) {
+        var reader = new jspb.BinaryReader(bytes);
+        var msg = new proto.tradr.CancelOrderResponse();
+        return proto.tradr.CancelOrderResponse.deserializeBinaryFromReader(msg, reader);
+      };
+      proto.tradr.CancelOrderResponse.deserializeBinaryFromReader = function(msg, reader) {
+        while (reader.nextField()) {
+          if (reader.isEndGroup()) {
+            break;
+          }
+          var field = reader.getFieldNumber();
+          switch (field) {
+            case 1:
+              var value = (
+                /** @type {boolean} */
+                reader.readBool()
+              );
+              msg.setOk(value);
+              break;
+            case 2:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setStatus(value);
+              break;
+            case 3:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setMessage(value);
+              break;
+            default:
+              reader.skipField();
+              break;
+          }
+        }
+        return msg;
+      };
+      proto.tradr.CancelOrderResponse.prototype.serializeBinary = function() {
+        var writer = new jspb.BinaryWriter();
+        proto.tradr.CancelOrderResponse.serializeBinaryToWriter(this, writer);
+        return writer.getResultBuffer();
+      };
+      proto.tradr.CancelOrderResponse.serializeBinaryToWriter = function(message, writer) {
+        var f = void 0;
+        f = message.getOk();
+        if (f) {
+          writer.writeBool(
+            1,
+            f
+          );
+        }
+        f = message.getStatus();
+        if (f.length > 0) {
+          writer.writeString(
+            2,
+            f
+          );
+        }
+        f = message.getMessage();
+        if (f.length > 0) {
+          writer.writeString(
+            3,
+            f
+          );
+        }
+      };
+      proto.tradr.CancelOrderResponse.prototype.getOk = function() {
+        return (
+          /** @type {boolean} */
+          jspb.Message.getBooleanFieldWithDefault(this, 1, false)
+        );
+      };
+      proto.tradr.CancelOrderResponse.prototype.setOk = function(value) {
+        return jspb.Message.setProto3BooleanField(this, 1, value);
+      };
+      proto.tradr.CancelOrderResponse.prototype.getStatus = function() {
+        return (
+          /** @type {string} */
+          jspb.Message.getFieldWithDefault(this, 2, "")
+        );
+      };
+      proto.tradr.CancelOrderResponse.prototype.setStatus = function(value) {
+        return jspb.Message.setProto3StringField(this, 2, value);
+      };
+      proto.tradr.CancelOrderResponse.prototype.getMessage = function() {
+        return (
+          /** @type {string} */
+          jspb.Message.getFieldWithDefault(this, 3, "")
+        );
+      };
+      proto.tradr.CancelOrderResponse.prototype.setMessage = function(value) {
+        return jspb.Message.setProto3StringField(this, 3, value);
       };
       if (jspb.Message.GENERATE_TO_OBJECT) {
         proto.tradr.GetOrderRequest.prototype.toObject = function(opt_includeInstance) {
@@ -7160,6 +7352,37 @@
           request,
           metadata || {},
           methodDescriptor_TradingService_PlaceOptionOrder
+        );
+      };
+      var methodDescriptor_TradingService_CancelOrder = new grpc.web.MethodDescriptor(
+        "/tradr.TradingService/CancelOrder",
+        grpc.web.MethodType.UNARY,
+        proto2.tradr.CancelOrderRequest,
+        proto2.tradr.CancelOrderResponse,
+        /**
+         * @param {!proto.tradr.CancelOrderRequest} request
+         * @return {!Uint8Array}
+         */
+        function(request) {
+          return request.serializeBinary();
+        },
+        proto2.tradr.CancelOrderResponse.deserializeBinary
+      );
+      proto2.tradr.TradingServiceClient.prototype.cancelOrder = function(request, metadata, callback) {
+        return this.client_.rpcCall(
+          this.hostname_ + "/tradr.TradingService/CancelOrder",
+          request,
+          metadata || {},
+          methodDescriptor_TradingService_CancelOrder,
+          callback
+        );
+      };
+      proto2.tradr.TradingServicePromiseClient.prototype.cancelOrder = function(request, metadata) {
+        return this.client_.unaryCall(
+          this.hostname_ + "/tradr.TradingService/CancelOrder",
+          request,
+          metadata || {},
+          methodDescriptor_TradingService_CancelOrder
         );
       };
       var methodDescriptor_TradingService_GetOrder = new grpc.web.MethodDescriptor(

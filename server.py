@@ -243,6 +243,31 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         except Exception as e:
             _abort_for_exception(context, e)
 
+    # --- Cancellation ---
+
+    def CancelOrder(self, request, context):
+        """Cancel an order by internal id.
+
+        Args:
+            request: service_pb2.CancelOrderRequest - order_id.
+
+        Returns:
+            service_pb2.CancelOrderResponse - ok/status/message.
+        """
+        try:
+            order_id = int(request.order_id)
+            ok = self.api.cancel_order(order_id)
+            rec = self.api.get_order(order_id) or {}
+
+            return service_pb2.CancelOrderResponse(
+                ok=bool(ok),
+                status=str(rec.get('status') or ('CANCEL_REQUESTED' if ok else '')),
+                message=str(rec.get('error') or rec.get('message') or '')
+            )
+
+        except Exception as e:
+            _abort_for_exception(context, e)
+
     # --- Orders / Fills ---
 
     def GetOrder(self, request, context):

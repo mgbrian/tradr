@@ -199,6 +199,67 @@ proto.tradr.TradingServicePromiseClient.prototype.placeOptionOrder =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.tradr.CancelOrderRequest,
+ *   !proto.tradr.CancelOrderResponse>}
+ */
+const methodDescriptor_TradingService_CancelOrder = new grpc.web.MethodDescriptor(
+  '/tradr.TradingService/CancelOrder',
+  grpc.web.MethodType.UNARY,
+  proto.tradr.CancelOrderRequest,
+  proto.tradr.CancelOrderResponse,
+  /**
+   * @param {!proto.tradr.CancelOrderRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.tradr.CancelOrderResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.tradr.CancelOrderRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.tradr.CancelOrderResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.tradr.CancelOrderResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.tradr.TradingServiceClient.prototype.cancelOrder =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/tradr.TradingService/CancelOrder',
+      request,
+      metadata || {},
+      methodDescriptor_TradingService_CancelOrder,
+      callback);
+};
+
+
+/**
+ * @param {!proto.tradr.CancelOrderRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.tradr.CancelOrderResponse>}
+ *     Promise that resolves to the response
+ */
+proto.tradr.TradingServicePromiseClient.prototype.cancelOrder =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/tradr.TradingService/CancelOrder',
+      request,
+      metadata || {},
+      methodDescriptor_TradingService_CancelOrder);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.tradr.GetOrderRequest,
  *   !proto.tradr.OrderRecord>}
  */

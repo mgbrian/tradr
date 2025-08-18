@@ -56,6 +56,22 @@ class PlaceOrderResponse(_message.Message):
     message: str
     def __init__(self, order_id: _Optional[int] = ..., broker_order_id: _Optional[int] = ..., status: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
 
+class CancelOrderRequest(_message.Message):
+    __slots__ = ("order_id",)
+    ORDER_ID_FIELD_NUMBER: _ClassVar[int]
+    order_id: int
+    def __init__(self, order_id: _Optional[int] = ...) -> None: ...
+
+class CancelOrderResponse(_message.Message):
+    __slots__ = ("ok", "status", "message")
+    OK_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    ok: bool
+    status: str
+    message: str
+    def __init__(self, ok: bool = ..., status: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
+
 class GetOrderRequest(_message.Message):
     __slots__ = ("order_id",)
     ORDER_ID_FIELD_NUMBER: _ClassVar[int]

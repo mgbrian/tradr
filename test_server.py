@@ -189,6 +189,71 @@ class TestTradingService(unittest.TestCase):
         self.assertEqual(kwargs.get('limit_price'), 2.50)
         self.assertEqual(kwargs.get('tif'), 'DAY')
 
+    # --- Cancellation ---
+
+    def test_cancel_order_calls_api_and_returns_proto(self):
+        """CancelOrder: veneer forwards order_id, returns ok/status/message based on DB snapshot."""
+        self.mock_api.cancel_order.return_value = True
+        self.mock_api.get_order.return_value = {
+            'order_id': 1,
+            'status': 'CANCEL_REQUESTED',
+            'message': ''
+        }
+
+        req = service_pb2.CancelOrderRequest(order_id=1)
+        resp = self.stub.CancelOrder(req)
+
+        # API invoked with internal id
+        self.mock_api.cancel_order.assert_called_once_with(1)
+        self.mock_api.get_order.assert_called_with(1)
+
+        self.assertTrue(resp.ok)
+        self.assertEqual(resp.status, "CANCEL_REQUESTED")
+        self.assertEqual(resp.message, "")
+
+    def test_cancel_order_false_uses_db_status(self):
+        """If API reports False (e.g., already FILLED), response.ok=False and status comes from DB."""
+        self.mock_api.cancel_order.return_value = False
+        self.mock_api.get_order.return_value = {
+            'order_id': 1,
+            'status': 'FILLED',
+            'message': 'already filled'
+        }
+
+        req = service_pb2.CancelOrderRequest(order_id=1)
+        resp = self.stub.CancelOrder(req)
+
+        self.mock_api.cancel_order.assert_called_once_with(1)
+        self.assertFalse(resp.ok)
+        self.assertEqual(resp.status, "FILLED")
+        self.assertEqual(resp.message, "already filled")
+
+    def test_cancel_order_validation_error_maps_to_invalid_argument(self):
+        """ValueError from API maps to INVALID_ARGUMENT."""
+        self.mock_api.cancel_order.side_effect = ValueError("no broker id")
+
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        with self.assertRaises(grpc.RpcError) as cm:
+            self.stub.CancelOrder(service_pb2.CancelOrderRequest(order_id=1))
+
+        self.assertEqual(cm.exception.code(), grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("no broker id", cm.exception.details())
+
+    def test_cancel_order_missing_order_maps_to_not_found(self):
+        """KeyError from API maps to NOT_FOUND."""
+        self.mock_api.cancel_order.side_effect = KeyError("missing")
+
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        with self.assertRaises(grpc.RpcError) as cm:
+            self.stub.CancelOrder(service_pb2.CancelOrderRequest(order_id=404))
+
+        self.assertEqual(cm.exception.code(), grpc.StatusCode.NOT_FOUND)
+        self.assertIn("missing", cm.exception.details())
+
     # --- Error mapping (context.abort) ---
 
     def test_place_stock_order_api_exception_returns_grpc_error(self):

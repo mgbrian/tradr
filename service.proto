@@ -7,6 +7,7 @@ package tradr;
 service TradingService {
   rpc PlaceStockOrder(PlaceStockOrderRequest) returns (PlaceOrderResponse);
   rpc PlaceOptionOrder(PlaceOptionOrderRequest) returns (PlaceOrderResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
 
   rpc GetOrder(GetOrderRequest) returns (OrderRecord);
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
@@ -46,6 +47,16 @@ message PlaceOrderResponse {
   int64 broker_order_id = 2; // may be 0 if unknown at submit time
   string status = 3; // e.g. "SUBMITTED" or "ERROR"
   string message = 4; // optional error/info
+}
+
+message CancelOrderRequest {
+  int64 order_id = 1;
+}
+
+message CancelOrderResponse {
+  bool ok = 1;  // true if a cancel request was submitted to the broker
+  string status = 2;  // current/updated order status (e.g. "CANCEL_REQUESTED", "FILLED", "CANCELLED")
+  string message = 3; // optional error/info (from DB error/message fields)
 }
 
 message GetOrderRequest {
