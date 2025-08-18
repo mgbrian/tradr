@@ -104,17 +104,31 @@ class TradingWebClient {
   // --- Orders ---
 
   /**
-   * Place a stock market order.
+   * Place a stock order.
+   *
+   * Supports market, limit, and stop orders.
+   * - orderType: "MKT" (default) | "LMT" | "STP"
+   * - price: used for LMT/STP (proto field is `price`)
+   * - tif: "DAY" (default) | "GTC"
+   *
    * @param {string} symbol - e.g. "AAPL".
    * @param {"BUY"|"SELL"|"SHORT"|"COVER"|string} side
    * @param {number} quantity
+   * @param {"MKT"|"LMT"|"STP"|string} [orderType="MKT"]
+   * @param {number} [price] - Only set when using LMT/STP (kept optional for proto semantics).
+   * @param {"DAY"|"GTC"|string} [tif="DAY"]
    * @returns {Promise<{order_id:number, broker_order_id:number, status:string, message:string}>}
    */
-  async PlaceStockOrder(symbol, side, quantity) {
+  async PlaceStockOrder(symbol, side, quantity, orderType = "MKT", price /* optional */, tif = "DAY") {
     const req = new messages.PlaceStockOrderRequest();
     req.setSymbol(symbol);
     req.setSide(side);
     req.setQuantity(quantity);
+
+    // Optional fields: set only if provided to preserve proto optional semantics.
+    if (orderType) req.setOrderType(orderType);
+    if (tif) req.setTif(tif);
+    if (price !== undefined && price !== null) req.setPrice(Number(price));
 
     const resp = await this.client.placeStockOrder(req, this.metadata);
     return {
@@ -126,16 +140,35 @@ class TradingWebClient {
   }
 
   /**
-   * Place an option market order.
+   * Place an option order.
+   *
+   * Supports market, limit, and stop orders.
+   * - orderType: "MKT" (default) | "LMT" | "STP"
+   * - price: used for LMT/STP (proto field is `price`)
+   * - tif: "DAY" (default) | "GTC"
+   *
    * @param {string} symbol - Underlying ticker.
    * @param {string} expiry - YYYYMMDD.
    * @param {number} strike
    * @param {"C"|"P"|string} right
    * @param {"BUY"|"SELL"|string} side
    * @param {number} quantity - contracts
+   * @param {"MKT"|"LMT"|"STP"|string} [orderType="MKT"]
+   * @param {number} [price] - Only set when using LMT/STP (kept optional for proto semantics).
+   * @param {"DAY"|"GTC"|string} [tif="DAY"]
    * @returns {Promise<{order_id:number, broker_order_id:number, status:string, message:string}>}
    */
-  async PlaceOptionOrder(symbol, expiry, strike, right, side, quantity) {
+  async PlaceOptionOrder(
+    symbol,
+    expiry,
+    strike,
+    right,
+    side,
+    quantity,
+    orderType = "MKT",
+    price /* optional */,
+    tif = "DAY"
+  ) {
     const req = new messages.PlaceOptionOrderRequest();
     req.setSymbol(symbol);
     req.setExpiry(expiry);
@@ -143,6 +176,10 @@ class TradingWebClient {
     req.setRight(right);
     req.setSide(side);
     req.setQuantity(quantity);
+
+    if (orderType) req.setOrderType(orderType);
+    if (tif) req.setTif(tif);
+    if (price !== undefined && price !== null) req.setPrice(Number(price));
 
     const resp = await this.client.placeOptionOrder(req, this.metadata);
     return {
@@ -160,7 +197,7 @@ class TradingWebClient {
    */
   async GetOrder(orderId) {
     const req = new messages.GetOrderRequest();
-    req.setOrderid(orderId);
+    req.setOrderId(orderId); // field: order_id -> setOrderId
     const resp = await this.client.getOrder(req, this.metadata);
     return orderRecordToObj(resp);
   }
@@ -186,7 +223,7 @@ class TradingWebClient {
    */
   async ListFills(orderId, limit) {
     const req = new messages.ListFillsRequest();
-    if (typeof orderId === "number") req.setOrderid(orderId);
+    if (typeof orderId === "number") req.setOrderId(orderId); // field: order_id -> setOrderId
     if (typeof limit === "number") req.setLimit(limit);
     const resp = await this.client.listFills(req, this.metadata);
     const list = resp.getFillsList();
