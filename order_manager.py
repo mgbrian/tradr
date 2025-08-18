@@ -18,8 +18,11 @@ TODO:
 """
 import asyncio
 
-from ib_async import MarketOrder
+from ib_async import MarketOrder, LimitOrder, StopOrder
 from contracts import OptionType, create_stock_contract, create_option_contract
+
+
+SUPPORTED_TIF_VALUES = {'DAY', 'GTC'}
 
 
 class OrderManager:
@@ -62,65 +65,123 @@ class OrderManager:
         fut = asyncio.run_coroutine_threadsafe(_coro(), loop)
         return fut.result(timeout or self._default_timeout)
 
-    def buy_stock(self, symbol, quantity):
+    @staticmethod
+    def _build_order(side, quantity, order_type='MKT', price=None, tif='DAY'):
+        """Factory for Market/Limit/Stop orders with TIF applied."""
+        ot = (order_type or 'MKT').upper()
+        order_kwargs = {}
+
+        if tif:
+            tif = str(tif).upper()
+
+
+            if tif not in SUPPORTED_TIF_VALUES:
+                raise ValueError(f"Unsupported tif value: {tif}. Must be one of: {', '.join(SUPPORTED_TIF_VALUES)}")
+
+            order_kwargs["tif"] = tif
+
+        if ot == 'MKT':
+            order = MarketOrder(side, int(quantity), **order_kwargs)
+
+        elif ot == 'LMT':
+            if price is None:
+                raise ValueError("Limit order requires price")
+            order = LimitOrder(side, int(quantity), float(price), **order_kwargs)
+
+        elif ot == 'STP':
+            if price is None:
+                raise ValueError("Stop order requires stop price")
+            # IB uses auxPrice for stop trigger
+            order = StopOrder(side, int(quantity), float(price), **order_kwargs)
+
+        else:
+            raise ValueError(f"Unsupported order_type: {order_type}")
+
+        return order
+
+    def buy_stock(self, symbol, quantity, *, order_type='MKT', price=None, tif='DAY'):
         """Submit a market order to buy a stock.
 
         Args:
             symbol: str - Stock ticker e.g. "AAPL".
             quantity: int - Number of shares to buy.
 
+            Optional Kwargs:
+            ----------------
+            order_type: str - 'MKT', 'LMT' or 'STP'. Default = 'MKT'
+            price: float - Limit or stop price.
+            tif: str - Time in force. 'DAY' or 'GTC'. Default = 'DAY'.
+
         Returns:
             Trade - The ib_async Trade handle.
         """
         # TODO: Should we validate quantity here or is that handled at  a lower level?
         contract = create_stock_contract(symbol)
-        order = MarketOrder('BUY', quantity)
+        order = self._build_order('BUY', quantity, order_type, price, tif)
         return self._place_on_ib_loop(contract, order)
 
-    def sell_stock(self, symbol, quantity):
+    def sell_stock(self, symbol, quantity, *, order_type='MKT', price=None, tif='DAY'):
         """Submit a market order to sell a stock.
 
         Args:
             symbol: str - Stock ticker e.g. "AAPL".
             quantity: int - Number of shares to sell.
 
+            Optional Kwargs:
+            ----------------
+            order_type: str - 'MKT', 'LMT' or 'STP'. Default = 'MKT'
+            price: float - Limit or stop price.
+            tif: str - Time in force. 'DAY' or 'GTC'. Default = 'DAY'.
+
         Returns:
             Trade - The ib_async Trade handle.
         """
         contract = create_stock_contract(symbol)
-        order = MarketOrder('SELL', quantity)
+        order = self._build_order('SELL', quantity, order_type, price, tif)
         return self._place_on_ib_loop(contract, order)
 
-    def short_stock(self, symbol, quantity):
+    def short_stock(self, symbol, quantity, *, order_type='MKT', price=None, tif='DAY'):
         """Submit a market order to short a stock.
 
         Args:
             symbol: str - Stock ticker symbol.
             quantity: int - Number of shares to short.
 
+            Optional Kwargs:
+            ----------------
+            order_type: str - 'MKT', 'LMT' or 'STP'. Default = 'MKT'
+            price: float - Limit or stop price.
+            tif: str - Time in force. 'DAY' or 'GTC'. Default = 'DAY'.
+
         Returns:
             Trade - The ib_async Trade handle.
         """
         contract = create_stock_contract(symbol)
-        order = MarketOrder('SELL', quantity)
+        order = self._build_order('SELL', quantity, order_type, price, tif)
         # TODO: Check shortability before placing order.
         return self._place_on_ib_loop(contract, order)
 
-    def buy_to_cover(self, symbol, quantity):
+    def buy_to_cover(self, symbol, quantity, *, order_type='MKT', price=None, tif='DAY'):
         """Submit a market order to buy-to-cover a short position.
 
         Args:
             symbol: str - Stock ticker symbol.
             quantity: int - Number of shares to cover.
 
+            Optional Kwargs:
+            ----------------
+            order_type: str - 'MKT', 'LMT' or 'STP'. Default = 'MKT'
+            price: float - Limit or stop price.
+            tif: str - Time in force. 'DAY' or 'GTC'. Default = 'DAY'.
+
         Returns:
             Trade - The ib_async Trade handle.
         """
         contract = create_stock_contract(symbol)
-        order = MarketOrder('BUY', quantity)
+        order = self._build_order('BUY', quantity, order_type, price, tif)
         return self._place_on_ib_loop(contract, order)
 
-    def buy_option(self, symbol, expiry, strike, right, quantity):
+    def buy_option(self, symbol, expiry, strike, right, quantity, *, order_type='MKT', price=None, tif='DAY'):
         """Submit a market order to buy an option.
 
         Args:
@@ -130,6 +191,12 @@ class OrderManager:
             right: str - 'C' for Call, 'P' for Put.
             quantity: int - Number of option contracts to buy.
 
+            Optional Kwargs:
+            ----------------
+            order_type: str - 'MKT', 'LMT' or 'STP'. Default = 'MKT'
+            price: float - Limit or stop price.
+            tif: str - Time in force. 'DAY' or 'GTC'. Default = 'DAY'.
+
         Returns:
             Trade - The ib_async Trade handle.
 
@@ -140,10 +207,10 @@ class OrderManager:
             raise ValueError("right must be 'C' for Call or 'P' for Put")
 
         contract = create_option_contract(symbol, expiry, strike, OptionType(right))
-        order = MarketOrder('BUY', quantity)
+        order = self._build_order('BUY', quantity, order_type, price, tif)
         return self._place_on_ib_loop(contract, order)
 
-    def sell_option(self, symbol, expiry, strike, right, quantity):
+    def sell_option(self, symbol, expiry, strike, right, quantity, *, order_type='MKT', price=None, tif='DAY'):
         """Submit a market order to sell an option.
 
         Args:
@@ -153,6 +220,12 @@ class OrderManager:
             right: str - 'C' for Call, 'P' for Put.
             quantity: int - Number of option contracts to sell.
 
+            Optional Kwargs:
+            ----------------
+            order_type: str - 'MKT', 'LMT' or 'STP'. Default = 'MKT'
+            price: float - Limit or stop price.
+            tif: str - Time in force. 'DAY' or 'GTC'. Default = 'DAY'.
+
         Returns:
             Trade - The ib_async Trade handle.
 
@@ -163,7 +236,8 @@ class OrderManager:
             raise ValueError("right must be 'C' for Call or 'P' for Put")
 
         contract = create_option_contract(symbol, expiry, strike, OptionType(right))
-        order = MarketOrder('SELL', quantity)
+        order = self._build_order('SELL', quantity, order_type, price, tif)
+        return self._place_on_ib_loop(contract, order)
 
         return self._place_on_ib_loop(contract, order)
 

@@ -25,7 +25,7 @@ This should not be used directly. Use the app handle exposed in runtime.py. See 
 import logging
 import time
 
-from order_manager import OrderManager
+from order_manager import OrderManager, SUPPORTED_TIF_VALUES
 from position_tracker import PositionTracker
 
 
@@ -104,15 +104,22 @@ class TradingAPI:
 
     # --- Stock orders ---
 
-    def place_stock_order(self, symbol, side, qty, order_type='MKT', limit_price=None):
+    def place_stock_order(self, symbol, side, qty, order_type='MKT', limit_price=None, tif='DAY'):
         """Place a stock order and persist it.
+
+        Supports market, limit, and stop orders:
+
+            - order_type: 'MKT' (market), 'LMT' (limit), 'STP' (stop)
+            - limit_price: required for 'LMT' and 'STP'
+            - tif: time-in-force ('DAY' or 'GTC'), defaults to 'DAY'
 
         Args:
             symbol: str - Ticker symbol (e.g. 'AAPL').
             side: str - 'BUY' | 'SELL' | 'SHORT' | 'COVER'.
             qty: int - Number of shares.
-            order_type: str - Order type, defaults to 'MKT'. TODO: Support 'LMT' etc.
-            limit_price: float (Optional) - Limit price when using limit orders.
+            order_type: str - Order type; default 'MKT'. Supports 'MKT' | 'LMT' | 'STP'.
+            limit_price: float (Optional) - Price for limit/stop orders.
+            tif: str (Optional) - Time-in-force, e.g. 'DAY' or 'GTC'. Defaults to 'DAY'.
 
         Returns:
             OrderHandle - Identifiers for the placed order.
@@ -130,9 +137,18 @@ class TradingAPI:
         if not isinstance(qty, int) or qty <= 0:
             raise ValueError("qty must be a positive integer")
 
-        if order_type != 'MKT':
-            # TODO: implement limit/stop orders in OrderManager + here
-            raise ValueError("Only market orders are supported at this time")
+        order_type = (order_type or 'MKT').upper()
+        tif = (tif or 'DAY').upper()
+
+        # Validate order type & required price
+        if order_type not in ('MKT', 'LMT', 'STP'):
+            raise ValueError("order_type must be one of: MKT, LMT, STP")
+
+        if order_type in ('LMT', 'STP') and (limit_price is None):
+            raise ValueError(f"{order_type} order requires limit_price")
+
+        if tif not in SUPPORTED_TIF_VALUES:
+            raise ValueError(f"Unsupported tif value: {tif}. Must be one of: {', '.join(SUPPORTED_TIF_VALUES)}")
 
         # Persist a preliminary order record
         order_record = {
@@ -141,25 +157,28 @@ class TradingAPI:
             'side': side,
             'qty': qty,
             'order_type': order_type,
-            'limit_price': limit_price,
-            'status': 'SUBMITTED',  # TODO: evolve to ACKED/FILLED/REJECTED via events
+            'limit_price': float(limit_price) if limit_price is not None else None,
+            'tif': tif,
+            # Mark as pending until broker submit succeeds.
+            # TODO: evolve to ACKED/FILLED/REJECTED via events
+            'status': 'PENDING_SUBMIT',
         }
         order_id = self.db.add_order(order_record)
 
         # Route to OrderManager
         try:
             if side == 'BUY':
-                trade = self.orders.buy_stock(symbol, qty)
+                trade = self.orders.buy_stock(symbol, qty, order_type=order_type, price=limit_price, tif=tif)
 
             elif side == 'SELL':
-                trade = self.orders.sell_stock(symbol, qty)
+                trade = self.orders.sell_stock(symbol, qty, order_type=order_type, price=limit_price, tif=tif)
 
             elif side == 'SHORT':
-                trade = self.orders.short_stock(symbol, qty)
+                trade = self.orders.short_stock(symbol, qty, order_type=order_type, price=limit_price, tif=tif)
 
             # Safe to assume that this is COVER due to validation above.
             else:
-                trade = self.orders.buy_to_cover(symbol, qty)
+                trade = self.orders.buy_to_cover(symbol, qty, order_type=order_type, price=limit_price, tif=tif)
 
         except Exception as e:
             # Update DB with error state
@@ -192,8 +211,14 @@ class TradingAPI:
 
     # --- Option orders ---
 
-    def place_option_order(self, symbol, expiry, strike, right, side, qty, order_type='MKT', limit_price=None):
+    def place_option_order(self, symbol, expiry, strike, right, side, qty, order_type='MKT', limit_price=None, tif='DAY'):
         """Place an option order and persist it.
+
+        Supports market, limit, and stop orders:
+
+            - order_type: 'MKT' (market), 'LMT' (limit), 'STP' (stop)
+            - limit_price: required for 'LMT' and 'STP'
+            - tif: time-in-force (e.g. 'DAY', 'GTC'), defaults to 'DAY'
 
         Args:
             symbol: str - Underlying symbol (e.g. 'AAPL').
@@ -202,8 +227,9 @@ class TradingAPI:
             right: str - 'C' for Call or 'P' for Put.
             side: str - 'BUY' or 'SELL' (buy/sell contracts; writing/selling handled by 'SELL').
             qty: int - Number of option contracts.
-            order_type: str - Order type, defaults to 'MKT'. TODO: Support 'LMT' etc.
-            limit_price: float (Optional) - Limit price when using limit orders.
+            order_type: str - Order type; default 'MKT'. Supports 'MKT' | 'LMT' | 'STP'.
+            limit_price: float (Optional) - Price for limit/stop orders.
+            tif: str (Optional) - Time-in-force, e.g. 'DAY' or 'GTC'. Defaults to 'DAY'.
 
         Returns:
             OrderHandle for the placed order.
@@ -224,9 +250,14 @@ class TradingAPI:
         if not isinstance(qty, int) or qty <= 0:
             raise ValueError("qty must be a positive integer")
 
-        if order_type != 'MKT':
-            # TODO: implement limit/stop orders in OrderManager + here
-            raise ValueError("Only market orders are supported at this time")
+        order_type = (order_type or 'MKT').upper()
+        tif = (tif or 'DAY').upper()
+
+        if order_type not in ('MKT', 'LMT', 'STP'):
+            raise ValueError("order_type must be one of: MKT, LMT, STP")
+
+        if order_type in ('LMT', 'STP') and (limit_price is None):
+            raise ValueError(f"{order_type} order requires limit_price")
 
         order_record = {
             'symbol': symbol,
@@ -237,16 +268,25 @@ class TradingAPI:
             'side': side,
             'qty': qty,
             'order_type': order_type,
-            'limit_price': limit_price,
-            'status': 'SUBMITTED',
+            'limit_price': float(limit_price) if limit_price is not None else None,
+            'tif': tif,
+            # Keep status semantics aligned with stocks
+            'status': 'PENDING_SUBMIT',
         }
         order_id = self.db.add_order(order_record)
 
         try:
             if side == 'BUY':
-                trade = self.orders.buy_option(symbol, expiry, strike, right, qty)
+                trade = self.orders.buy_option(
+                    symbol, expiry, strike, right, qty,
+                    order_type=order_type, price=limit_price, tif=tif
+                )
+
             else:
-                trade = self.orders.sell_option(symbol, expiry, strike, right, qty)
+                trade = self.orders.sell_option(
+                    symbol, expiry, strike, right, qty,
+                    order_type=order_type, price=limit_price, tif=tif
+                )
 
         except Exception as e:
             self.db.update_order(order_id, {'status': 'ERROR', 'error': str(e)})

@@ -36,7 +36,7 @@ class TestTradingAPI(unittest.TestCase):
     # --- Validation tests ---
 
     def test_place_stock_order_validates_inputs(self):
-        """Stock order input validation: symbol, side, qty, order_type."""
+        """Stock order input validation: symbol, side, qty, order_type/TIF/price where required."""
         with self.assertRaises(ValueError):
             self.api.place_stock_order('', 'BUY', 1)
 
@@ -46,11 +46,24 @@ class TestTradingAPI(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.place_stock_order('AAPL', 'BUY', 0)
 
+        # Invalid order_type should raise
         with self.assertRaises(ValueError):
-            self.api.place_stock_order('AAPL', 'BUY', 1, order_type='LMT')
+            self.api.place_stock_order('AAPL', 'BUY', 1, order_type='FAKE')
+
+        # LMT requires limit_price
+        with self.assertRaises(ValueError):
+            self.api.place_stock_order('AAPL', 'BUY', 1, order_type='LMT', limit_price=None)
+
+        # STP requires limit/trigger price (same param)
+        with self.assertRaises(ValueError):
+            self.api.place_stock_order('AAPL', 'SELL', 1, order_type='STP', limit_price=None)
+
+        # Invalid TIF should raise
+        with self.assertRaises(ValueError):
+            self.api.place_stock_order('AAPL', 'BUY', 1, order_type='LMT', limit_price=123.0, tif='IOC')
 
     def test_place_option_order_validates_inputs(self):
-        """Option order input validation: symbol, right, side, qty, order_type."""
+        """Option order input validation: symbol, right, side, qty, order_type/price where required."""
         with self.assertRaises(ValueError):
             self.api.place_option_order('', '20251219', 150.0, 'C', 'BUY', 1)
 
@@ -63,8 +76,16 @@ class TestTradingAPI(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 0)
 
+        # Invalid order type should raise
         with self.assertRaises(ValueError):
-            self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 1, order_type='LMT')
+            self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 1, order_type='FAKE')
+
+        # LMT/STP require limit_price
+        with self.assertRaises(ValueError):
+            self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 1, order_type='LMT', limit_price=None)
+
+        with self.assertRaises(ValueError):
+            self.api.place_option_order('AAPL', '20251219', 150.0, 'P', 'SELL', 1, order_type='STP', limit_price=None)
 
     # --- Success paths ---
 
@@ -73,17 +94,22 @@ class TestTradingAPI(unittest.TestCase):
         return SimpleNamespace(order=SimpleNamespace(orderId=order_id))
 
     def test_place_stock_order_persists_before_broker_and_updates_ib_id(self):
-        """Persist order, call broker, then update DB with broker_order_id."""
+        """Persist order, call broker, then update DB with broker_order_id (market)."""
         self.mock_orders.buy_stock.return_value = self._make_trade_with_order_id(42)
 
         handle = self.api.place_stock_order('AAPL', 'BUY', 10)
 
         # Persisted once before broker call
         self.mock_db.add_order.assert_called_once()
+        # Persisted order should contain basic shape (incl. order_type/tif fields now present)
+        add_args, _ = self.mock_db.add_order.call_args
+        self.assertEqual(add_args[0].get('order_type'), 'MKT')
+        self.assertIn('tif', add_args[0])  # may be None/default
+
         # Then updated with broker_order_id
         self.mock_db.update_order.assert_any_call(1, {'broker_order_id': 42, 'status': 'SUBMITTED'})
         # Broker called with correct mapping
-        self.mock_orders.buy_stock.assert_called_once_with('AAPL', 10)
+        self.mock_orders.buy_stock.assert_called_once_with('AAPL', 10, order_type='MKT', price=None, tif='DAY')
 
         # Handle returned
         self.assertIsInstance(handle, OrderHandle)
@@ -94,7 +120,7 @@ class TestTradingAPI(unittest.TestCase):
         self.assertEqual(handle.qty, 10)
 
     def test_place_stock_order_side_routing(self):
-        """Verify side maps to correct OrderManager method."""
+        """Verify side maps to correct OrderManager method for market orders."""
         # Return unique trades so we can assert all were called
         self.mock_orders.sell_stock.return_value = self._make_trade_with_order_id(1)
         self.mock_orders.short_stock.return_value = self._make_trade_with_order_id(2)
@@ -104,9 +130,46 @@ class TestTradingAPI(unittest.TestCase):
         self.api.place_stock_order('TSLA', 'SHORT', 3)
         self.api.place_stock_order('NVDA', 'COVER', 7)
 
-        self.mock_orders.sell_stock.assert_called_once_with('MSFT', 5)
-        self.mock_orders.short_stock.assert_called_once_with('TSLA', 3)
-        self.mock_orders.buy_to_cover.assert_called_once_with('NVDA', 7)
+        self.mock_orders.sell_stock.assert_called_once_with('MSFT', 5, order_type='MKT', price=None, tif='DAY')
+        self.mock_orders.short_stock.assert_called_once_with('TSLA', 3, order_type='MKT', price=None, tif='DAY')
+        self.mock_orders.buy_to_cover.assert_called_once_with('NVDA', 7, order_type='MKT', price=None, tif='DAY')
+
+    def test_place_stock_order_limit_success_calls_generic_and_updates_broker_id(self):
+        """LMT uses generic place_stock_order with price/TIF and updates DB with broker id."""
+        self.mock_orders.buy_stock.return_value = self._make_trade_with_order_id(99)
+
+        h = self.api.place_stock_order('AAPL', 'BUY', 10, order_type='LMT', limit_price=123.45, tif='GTC')
+
+        self.mock_orders.buy_stock.assert_called_once_with(
+            'AAPL', 10, order_type='LMT', price=123.45, tif='GTC'
+        )
+        # Persisted LMT fields captured
+        add_args, _ = self.mock_db.add_order.call_args
+        self.assertEqual(add_args[0]['order_type'], 'LMT')
+        self.assertEqual(add_args[0]['limit_price'], 123.45)
+        self.assertEqual(add_args[0]['tif'], 'GTC')
+
+        self.mock_db.update_order.assert_any_call(1, {'broker_order_id': 99, 'status': 'SUBMITTED'})
+        self.assertIsInstance(h, OrderHandle)
+        self.assertEqual(h.broker_order_id, 99)
+
+    def test_place_stock_order_stop_success_calls_generic_and_updates_broker_id(self):
+        """STP uses generic place_stock_order with trigger price/TIF and updates DB."""
+        self.mock_orders.sell_stock.return_value = self._make_trade_with_order_id(101)
+
+        h = self.api.place_stock_order('TSLA', 'SELL', 3, order_type='STP', limit_price=700.0, tif='DAY')
+
+        self.mock_orders.sell_stock.assert_called_once_with(
+            'TSLA', 3, order_type='STP', price=700.0, tif='DAY'
+        )
+        add_args, _ = self.mock_db.add_order.call_args
+        self.assertEqual(add_args[0]['order_type'], 'STP')
+        self.assertEqual(add_args[0]['limit_price'], 700.0)
+        self.assertEqual(add_args[0]['tif'], 'DAY')
+
+        self.mock_db.update_order.assert_any_call(1, {'broker_order_id': 101, 'status': 'SUBMITTED'})
+        self.assertIsInstance(h, OrderHandle)
+        self.assertEqual(h.broker_order_id, 101)
 
     def test_place_option_order_success_buy_and_sell(self):
         """BUY uses buy_option; SELL uses sell_option; DB updated with broker_order_id."""
@@ -116,8 +179,8 @@ class TestTradingAPI(unittest.TestCase):
         h1 = self.api.place_option_order('AAPL', '20251219', 150.0, 'C', 'BUY', 2)
         h2 = self.api.place_option_order('SPY', '20260116', 420.0, 'P', 'SELL', 1)
 
-        self.mock_orders.buy_option.assert_called_once_with('AAPL', '20251219', 150.0, 'C', 2)
-        self.mock_orders.sell_option.assert_called_once_with('SPY', '20260116', 420.0, 'P', 1)
+        self.mock_orders.buy_option.assert_called_once_with('AAPL', '20251219', 150.0, 'C', 2, order_type='MKT', price=None, tif='DAY')
+        self.mock_orders.sell_option.assert_called_once_with('SPY', '20260116', 420.0, 'P', 1, order_type='MKT', price=None, tif='DAY')
 
         # We expect two updates; check that update was called at least twice
         self.assertGreaterEqual(self.mock_db.update_order.call_count, 2)
@@ -126,10 +189,60 @@ class TestTradingAPI(unittest.TestCase):
         self.assertEqual(h1.broker_order_id, 1001)
         self.assertEqual(h2.broker_order_id, 1002)
 
+    def test_place_option_order_limit_success_calls_generic_and_updates_broker_id(self):
+        """Options LMT uses generic buy/sell_option with price/TIF and updates DB with broker id."""
+        self.mock_orders.buy_option.return_value = self._make_trade_with_order_id(2112)
+
+        h = self.api.place_option_order(
+            'AAPL', '20251219', 150.0, 'C', 'BUY', 2,
+            order_type='LMT', limit_price=1.25, tif='GTC'
+        )
+
+        self.mock_orders.buy_option.assert_called_once_with(
+            'AAPL', '20251219', 150.0, 'C', 2,
+            order_type='LMT', price=1.25, tif='GTC'
+        )
+
+        # Persisted fields captured
+        add_args, _ = self.mock_db.add_order.call_args
+        self.assertEqual(add_args[0]['asset_class'], 'OPT')
+        self.assertEqual(add_args[0]['order_type'], 'LMT')
+        self.assertEqual(add_args[0]['limit_price'], 1.25)
+        self.assertEqual(add_args[0]['tif'], 'GTC')
+        self.assertEqual(add_args[0]['status'], 'PENDING_SUBMIT')
+
+        # DB updated with broker id
+        self.mock_db.update_order.assert_any_call(1, {'broker_order_id': 2112, 'status': 'SUBMITTED'})
+        self.assertIsInstance(h, OrderHandle)
+        self.assertEqual(h.broker_order_id, 2112)
+
+    def test_place_option_order_stop_success_calls_generic_and_updates_broker_id(self):
+        """Options STP uses generic buy/sell_option with trigger price/TIF and updates DB."""
+        self.mock_orders.sell_option.return_value = self._make_trade_with_order_id(31415)
+
+        h = self.api.place_option_order(
+            'SPY', '20260116', 420.0, 'P', 'SELL', 1,
+            order_type='STP', limit_price=2.50, tif='DAY'
+        )
+
+        self.mock_orders.sell_option.assert_called_once_with(
+            'SPY', '20260116', 420.0, 'P', 1,
+            order_type='STP', price=2.50, tif='DAY'
+        )
+
+        add_args, _ = self.mock_db.add_order.call_args
+        self.assertEqual(add_args[0]['order_type'], 'STP')
+        self.assertEqual(add_args[0]['limit_price'], 2.50)
+        self.assertEqual(add_args[0]['tif'], 'DAY')
+
+        self.mock_db.update_order.assert_any_call(1, {'broker_order_id': 31415, 'status': 'SUBMITTED'})
+        self.assertIsInstance(h, OrderHandle)
+        self.assertEqual(h.broker_order_id, 31415)
+
     # --- Error paths ---
 
     def test_place_stock_order_broker_error_updates_db_and_raises(self):
-        """If broker call fails, DB status becomes ERROR and we raise RuntimeError."""
+        """If broker call fails (market path), DB status becomes ERROR and we raise RuntimeError."""
         # This test by design triggers a call to logger.exception in api.py, which
         # prints out a stack trace to the terminal, which can make it seem like
         # the tests are failing. Silence that here!
@@ -149,6 +262,22 @@ class TestTradingAPI(unittest.TestCase):
         self.assertEqual(args[1].get('status'), 'ERROR')
         self.assertIn('error', args[1])
 
+    def test_place_stock_order_limit_broker_error_updates_db_and_raises(self):
+        """If broker call fails (LMT path), DB status becomes ERROR and we raise RuntimeError."""
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        self.mock_orders.buy_stock.side_effect = RuntimeError("route down")
+
+        with self.assertRaises(RuntimeError):
+            self.api.place_stock_order('AAPL', 'BUY', 1, order_type='LMT', limit_price=101.0, tif='DAY')
+
+        self.mock_db.add_order.assert_called_once()
+        args, kwargs = self.mock_db.update_order.call_args
+        self.assertEqual(args[0], 1)
+        self.assertEqual(args[1].get('status'), 'ERROR')
+        self.assertIn('error', args[1])
+
     def test_place_option_order_broker_error_updates_db_and_raises(self):
         """If option broker call fails, DB status becomes ERROR and we raise RuntimeError."""
         # See note in test_place_stock_order_broker_error_updates_db_and_raises
@@ -161,6 +290,25 @@ class TestTradingAPI(unittest.TestCase):
 
         self.mock_db.add_order.assert_called_once()
         args, kwargs = self.mock_db.update_order.call_args
+        self.assertEqual(args[0], 1)
+        self.assertEqual(args[1].get('status'), 'ERROR')
+        self.assertIn('error', args[1])
+
+    def test_place_option_order_limit_broker_error_updates_db_and_raises(self):
+        """If option broker call fails (LMT path), DB status becomes ERROR and we raise RuntimeError."""
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        self.mock_orders.buy_option.side_effect = RuntimeError("route down (options)")
+
+        with self.assertRaises(RuntimeError):
+            self.api.place_option_order(
+                'AAPL', '20251219', 150.0, 'C', 'BUY', 2,
+                order_type='LMT', limit_price=1.10, tif='DAY'
+            )
+
+        self.mock_db.add_order.assert_called_once()
+        args, _ = self.mock_db.update_order.call_args
         self.assertEqual(args[0], 1)
         self.assertEqual(args[1].get('status'), 'ERROR')
         self.assertIn('error', args[1])

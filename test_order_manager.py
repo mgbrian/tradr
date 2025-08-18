@@ -17,6 +17,8 @@ class TestOrderManager(unittest.TestCase):
 
         # Patch symbols inside order_manager module
         self.patcher_market_order = patch("order_manager.MarketOrder")
+        self.patcher_limit_order = patch("order_manager.LimitOrder")
+        self.patcher_stop_order = patch("order_manager.StopOrder")
         self.patcher_stock_factory = patch("order_manager.create_stock_contract")
         self.patcher_option_factory = patch("order_manager.create_option_contract")
 
@@ -24,11 +26,15 @@ class TestOrderManager(unittest.TestCase):
         self.patcher_rcts = patch("order_manager.asyncio.run_coroutine_threadsafe")
 
         self.MockMarketOrder = self.patcher_market_order.start()
+        self.MockLimitOrder = self.patcher_limit_order.start()
+        self.MockStopOrder = self.patcher_stop_order.start()
         self.create_stock_contract = self.patcher_stock_factory.start()
         self.create_option_contract = self.patcher_option_factory.start()
         self.mock_rcts = self.patcher_rcts.start()
 
         self.addCleanup(self.patcher_market_order.stop)
+        self.addCleanup(self.patcher_limit_order.stop)
+        self.addCleanup(self.patcher_stop_order.stop)
         self.addCleanup(self.patcher_stock_factory.stop)
         self.addCleanup(self.patcher_option_factory.stop)
         self.addCleanup(self.patcher_rcts.stop)
@@ -39,9 +45,14 @@ class TestOrderManager(unittest.TestCase):
         self.create_stock_contract.return_value = self.fake_stock_contract
         self.create_option_contract.return_value = self.fake_option_contract
 
-        # MarketOrder returns a distinct object we can assert on
-        self.fake_order = object()
-        self.MockMarketOrder.return_value = self.fake_order
+        # Market/Limit/Stop orders return distinct objects we can assert on.
+        # For limit/stop we use MagicMock so we can assert attribute assignments (e.g., tif).
+        self.fake_mkt_order = object()
+        self.fake_lmt_order = MagicMock()
+        self.fake_stp_order = MagicMock()
+        self.MockMarketOrder.return_value = self.fake_mkt_order
+        self.MockLimitOrder.return_value = self.fake_lmt_order
+        self.MockStopOrder.return_value = self.fake_stp_order
 
         # placeOrder returns a "trade" object
         self.fake_trade = object()
@@ -54,15 +65,22 @@ class TestOrderManager(unittest.TestCase):
             self.assertIs(loop, self.mock_ib.loop)
 
             class _FakeFuture:
+                def __init__(self):
+                    self.last_timeout = None
+
                 def result(self_inner, timeout=None):
+                    self_inner.last_timeout = timeout
                     new_loop = asyncio.new_event_loop()
                     try:
                         return new_loop.run_until_complete(coro)
                     finally:
                         new_loop.close()
 
-            return _FakeFuture()
+            fut = _FakeFuture()
+            self._last_future = fut  # stash so tests can inspect the last timeout used
+            return fut
 
+        self._last_future = None
         self.mock_rcts.side_effect = _rcts_side_effect
 
         self.order_manager = OrderManager(self.mock_ib)
@@ -74,8 +92,8 @@ class TestOrderManager(unittest.TestCase):
         trade = self.order_manager.buy_stock("AAPL", 10)
 
         self.create_stock_contract.assert_called_once_with("AAPL")
-        self.MockMarketOrder.assert_called_once_with("BUY", 10)
-        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_order)
+        self.MockMarketOrder.assert_called_once_with("BUY", 10, tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_mkt_order)
         self.mock_rcts.assert_called_once()  # hopped to IB loop
         self.assertIs(trade, self.fake_trade)
 
@@ -84,8 +102,8 @@ class TestOrderManager(unittest.TestCase):
         trade = self.order_manager.sell_stock("MSFT", 5)
 
         self.create_stock_contract.assert_called_once_with("MSFT")
-        self.MockMarketOrder.assert_called_once_with("SELL", 5)
-        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_order)
+        self.MockMarketOrder.assert_called_once_with("SELL", 5, tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_mkt_order)
         self.mock_rcts.assert_called_once()
         self.assertIs(trade, self.fake_trade)
 
@@ -94,8 +112,9 @@ class TestOrderManager(unittest.TestCase):
         trade = self.order_manager.short_stock("TSLA", 3)
 
         self.create_stock_contract.assert_called_once_with("TSLA")
-        self.MockMarketOrder.assert_called_once_with("SELL", 3)
-        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_order)
+        # Always called with default TIF
+        self.MockMarketOrder.assert_called_once_with("SELL", 3, tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_mkt_order)
         self.mock_rcts.assert_called_once()
         self.assertIs(trade, self.fake_trade)
 
@@ -104,8 +123,8 @@ class TestOrderManager(unittest.TestCase):
         trade = self.order_manager.buy_to_cover("NVDA", 7)
 
         self.create_stock_contract.assert_called_once_with("NVDA")
-        self.MockMarketOrder.assert_called_once_with("BUY", 7)
-        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_order)
+        self.MockMarketOrder.assert_called_once_with("BUY", 7, tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_mkt_order)
         self.mock_rcts.assert_called_once()
         self.assertIs(trade, self.fake_trade)
 
@@ -118,8 +137,8 @@ class TestOrderManager(unittest.TestCase):
         self.create_option_contract.assert_called_once_with(
             "AAPL", "20251219", 150.0, OptionType.CALL
         )
-        self.MockMarketOrder.assert_called_once_with("BUY", 2)
-        self.mock_ib.placeOrder.assert_called_once_with(self.fake_option_contract, self.fake_order)
+        self.MockMarketOrder.assert_called_once_with("BUY", 2, tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_option_contract, self.fake_mkt_order)
         self.mock_rcts.assert_called_once()
         self.assertIs(trade, self.fake_trade)
 
@@ -130,8 +149,8 @@ class TestOrderManager(unittest.TestCase):
         self.create_option_contract.assert_called_once_with(
             "SPY", "20260116", 420.0, OptionType.PUT
         )
-        self.MockMarketOrder.assert_called_once_with("SELL", 1)
-        self.mock_ib.placeOrder.assert_called_once_with(self.fake_option_contract, self.fake_order)
+        self.MockMarketOrder.assert_called_once_with("SELL", 1, tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_option_contract, self.fake_mkt_order)
         self.mock_rcts.assert_called_once()
         self.assertIs(trade, self.fake_trade)
 
@@ -164,7 +183,6 @@ class TestOrderManager(unittest.TestCase):
             #    RuntimeWarning: Enable tracemalloc to get the object allocation traceback
             try:
                 coro.close()
-
             except Exception:
                 pass
 
@@ -179,6 +197,83 @@ class TestOrderManager(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             self.order_manager.buy_stock("AAPL", 1)
         self.mock_rcts.assert_called_once()
+
+    # --- Limit/Stop Orders and TIF ---
+
+    def test_place_stock_order_limit_buy_sets_tif_and_calls_limitorder(self):
+        """place_stock_order() LMT BUY should build LimitOrder(symbol, qty, price), set tif, and place."""
+        # Call new generic entrypoint
+        trade = self.order_manager.buy_stock(
+            symbol="AAPL", quantity=10, order_type="LMT", price=123.45, tif="GTC"
+        )
+
+        # Contract factory used
+        self.create_stock_contract.assert_called_once_with("AAPL")
+        # LimitOrder constructed with (side, qty, limit_price)
+        self.MockLimitOrder.assert_called_once_with("BUY", 10, 123.45, tif="GTC")
+        # Placed via IB on the stock contract
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_lmt_order)
+        self.assertIs(trade, self.fake_trade)
+
+    def test_place_stock_order_limit_sell_sets_tif(self):
+        """place_stock_order() LMT SELL should pass SELL and respect TIF."""
+        trade = self.order_manager.sell_stock(
+            symbol="MSFT", quantity=5, order_type="LMT", price=250.0, tif="DAY"
+        )
+        self.create_stock_contract.assert_called_once_with("MSFT")
+        self.MockLimitOrder.assert_called_once_with("SELL", 5, 250., tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_lmt_order)
+        self.assertIs(trade, self.fake_trade)
+
+    def test_place_stock_order_stop_buy_sets_tif_and_calls_stoporder(self):
+        """place_stock_order() STP BUY should build StopOrder(side, qty, stop_price), set tif, and place."""
+        trade = self.order_manager.buy_stock(
+            symbol="TSLA", quantity=3, order_type="STP", price=701.25, tif="GTC"
+        )
+        self.create_stock_contract.assert_called_once_with("TSLA")
+        self.MockStopOrder.assert_called_once_with("BUY", 3, 701.25, tif="GTC")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_stp_order)
+        self.assertIs(trade, self.fake_trade)
+
+    def test_place_stock_order_stop_sell_sets_tif(self):
+        """place_stock_order() STP SELL should pass SELL and set TIF."""
+        trade = self.order_manager.sell_stock(
+            symbol="NVDA", quantity=4, order_type="STP", price=950.0, tif="DAY"
+        )
+        self.create_stock_contract.assert_called_once_with("NVDA")
+        self.MockStopOrder.assert_called_once_with("SELL", 4, 950.0, tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_stp_order)
+        self.assertIs(trade, self.fake_trade)
+
+    def test_place_stock_order_limit_missing_price_raises(self):
+        """place_stock_order() LMT without limit_price should raise ValueError."""
+        with self.assertRaises(ValueError):
+            self.order_manager.buy_stock(
+                symbol="AAPL", quantity=1, order_type="LMT", price=None, tif="DAY"
+            )
+
+    def test_place_stock_order_stop_missing_price_raises(self):
+        """place_stock_order() STP without stop/trigger price (limit_price param) should raise ValueError."""
+        with self.assertRaises(ValueError):
+            self.order_manager.sell_stock(
+                symbol="AAPL", quantity=1, order_type="STP", price=None
+            )
+
+    def test_place_stock_order_invalid_type_raises(self):
+        """Unsupported order_type should raise ValueError."""
+        with self.assertRaises(ValueError):
+            self.order_manager.buy_stock(
+                symbol="AAPL", quantity=1, order_type="FAKE", price=1.0
+            )
+
+    def test_place_stock_order_invalid_tif_raises(self):
+        """Unsupported TIF should raise ValueError."""
+        with self.assertRaises(ValueError):
+            self.order_manager.buy_stock(
+                symbol="AAPL", quantity=1, order_type="LMT", price=123.0, tif="IOC"  # assume not yet supported
+            )
+
+    # TODO: Tests for option limit/stop orders.
 
 
 if __name__ == "__main__":

@@ -123,13 +123,16 @@ class TradingClient:
         """Close the underlying gRPC channel."""
         self._channel.close()
 
-    def PlaceStockOrder(self, symbol, side, quantity, timeout=None):
-        """Place a stock market order.
+    def PlaceStockOrder(self, symbol, side, quantity, *, order_type='MKT', limit_price=None, tif='DAY', timeout=None):
+        """Place a stock order (market/limit/stop).
 
         Args:
             symbol: str - Ticker, e.g. "AAPL".
             side: str - "BUY" | "SELL" | "SHORT" | "COVER".
             quantity: int - Number of shares.
+            order_type: str - "MKT" (default), "LMT", or "STP".
+            limit_price: float or None - Required for "LMT"/"STP".
+            tif: str - Time in force, e.g. "DAY" (default) or "GTC".
             timeout: float - Optional RPC timeout in seconds.
                 If not provided, instance-level timeout is used.
 
@@ -137,7 +140,25 @@ class TradingClient:
             dict - {'order_id', 'broker_order_id', 'status', 'message'}
         """
         timeout = timeout or self.timeout
-        req = service_pb2.PlaceStockOrderRequest(symbol=symbol, side=side, quantity=int(quantity))
+        # Only include limit_price if provided so proto 'optional' semantics behave properly.
+        if limit_price is None:
+            req = service_pb2.PlaceStockOrderRequest(
+                symbol=symbol,
+                side=side,
+                quantity=int(quantity),
+                order_type=order_type,
+                tif=tif,
+            )
+        else:
+            req = service_pb2.PlaceStockOrderRequest(
+                symbol=symbol,
+                side=side,
+                quantity=int(quantity),
+                order_type=order_type,
+                price=float(limit_price),
+                tif=tif,
+            )
+
         resp = self._stub.PlaceStockOrder(req, timeout=timeout)
         return {
             'order_id': int(resp.order_id),
@@ -146,8 +167,8 @@ class TradingClient:
             'message': resp.message,
         }
 
-    def PlaceOptionOrder(self, symbol, expiry, strike, right, side, quantity, timeout=None):
-        """Place an option market order.
+    def PlaceOptionOrder(self, symbol, expiry, strike, right, side, quantity, *, order_type='MKT', limit_price=None, tif='DAY', timeout=None):
+        """Place an option order (market/limit/stop).
 
         Args:
             symbol: str - Underlying ticker.
@@ -156,6 +177,9 @@ class TradingClient:
             right: str - "C" or "P".
             side: str - "BUY" | "SELL".
             quantity: int - Number of contracts.
+            order_type: str - "MKT" (default), "LMT", or "STP".
+            limit_price: float or None - Required for "LMT"/"STP".
+            tif: str - Time in force, e.g. "DAY" (default) or "GTC".
             timeout: float - Optional RPC timeout in seconds.
                 If not provided, instance-level timeout is used.
 
@@ -163,14 +187,21 @@ class TradingClient:
             dict - {'order_id', 'broker_order_id', 'status', 'message'}
         """
         timeout = timeout or self.timeout
-        req = service_pb2.PlaceOptionOrderRequest(
+        # Only include limit_price when provided to respect proto optional behavior.
+        base_kwargs = dict(
             symbol=symbol,
             expiry=expiry,
             strike=float(strike),
             right=right,
             side=side,
             quantity=int(quantity),
+            order_type=order_type,
+            tif=tif,
         )
+        if limit_price is not None:
+            base_kwargs['limit_price'] = float(limit_price)
+
+        req = service_pb2.PlaceOptionOrderRequest(**base_kwargs)
         resp = self._stub.PlaceOptionOrder(req, timeout=timeout)
         return {
             'order_id': int(resp.order_id),

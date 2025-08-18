@@ -407,7 +407,10 @@ proto.tradr.PlaceStockOrderRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
 symbol: jspb.Message.getFieldWithDefault(msg, 1, ""),
 side: jspb.Message.getFieldWithDefault(msg, 2, ""),
-quantity: jspb.Message.getFieldWithDefault(msg, 3, 0)
+quantity: jspb.Message.getFieldWithDefault(msg, 3, 0),
+orderType: jspb.Message.getFieldWithDefault(msg, 4, ""),
+price: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0.0),
+tif: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -456,6 +459,18 @@ proto.tradr.PlaceStockOrderRequest.deserializeBinaryFromReader = function(msg, r
       var value = /** @type {number} */ (reader.readInt32());
       msg.setQuantity(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOrderType(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readDouble());
+      msg.setPrice(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTif(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -503,6 +518,27 @@ proto.tradr.PlaceStockOrderRequest.serializeBinaryToWriter = function(message, w
   if (f !== 0) {
     writer.writeInt32(
       3,
+      f
+    );
+  }
+  f = message.getOrderType();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getPrice();
+  if (f !== 0.0) {
+    writer.writeDouble(
+      5,
+      f
+    );
+  }
+  f = message.getTif();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
       f
     );
   }
@@ -563,6 +599,60 @@ proto.tradr.PlaceStockOrderRequest.prototype.setQuantity = function(value) {
 };
 
 
+/**
+ * optional string order_type = 4;
+ * @return {string}
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.getOrderType = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.tradr.PlaceStockOrderRequest} returns this
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.setOrderType = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional double price = 5;
+ * @return {number}
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.getPrice = function() {
+  return /** @type {number} */ (jspb.Message.getFloatingPointFieldWithDefault(this, 5, 0.0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.tradr.PlaceStockOrderRequest} returns this
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.setPrice = function(value) {
+  return jspb.Message.setProto3FloatField(this, 5, value);
+};
+
+
+/**
+ * optional string tif = 6;
+ * @return {string}
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.getTif = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.tradr.PlaceStockOrderRequest} returns this
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.setTif = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
 
 
 
@@ -600,7 +690,10 @@ expiry: jspb.Message.getFieldWithDefault(msg, 2, ""),
 strike: jspb.Message.getFloatingPointFieldWithDefault(msg, 3, 0.0),
 right: jspb.Message.getFieldWithDefault(msg, 4, ""),
 side: jspb.Message.getFieldWithDefault(msg, 5, ""),
-quantity: jspb.Message.getFieldWithDefault(msg, 6, 0)
+quantity: jspb.Message.getFieldWithDefault(msg, 6, 0),
+orderType: jspb.Message.getFieldWithDefault(msg, 7, ""),
+price: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0.0),
+tif: jspb.Message.getFieldWithDefault(msg, 9, "")
   };
 
   if (includeInstance) {
@@ -660,6 +753,18 @@ proto.tradr.PlaceOptionOrderRequest.deserializeBinaryFromReader = function(msg, 
     case 6:
       var value = /** @type {number} */ (reader.readInt32());
       msg.setQuantity(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOrderType(value);
+      break;
+    case 8:
+      var value = /** @type {number} */ (reader.readDouble());
+      msg.setPrice(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTif(value);
       break;
     default:
       reader.skipField();
@@ -729,6 +834,27 @@ proto.tradr.PlaceOptionOrderRequest.serializeBinaryToWriter = function(message, 
   if (f !== 0) {
     writer.writeInt32(
       6,
+      f
+    );
+  }
+  f = message.getOrderType();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getPrice();
+  if (f !== 0.0) {
+    writer.writeDouble(
+      8,
+      f
+    );
+  }
+  f = message.getTif();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
       f
     );
   }
@@ -840,6 +966,60 @@ proto.tradr.PlaceOptionOrderRequest.prototype.getQuantity = function() {
  */
 proto.tradr.PlaceOptionOrderRequest.prototype.setQuantity = function(value) {
   return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+/**
+ * optional string order_type = 7;
+ * @return {string}
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.getOrderType = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.setOrderType = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional double price = 8;
+ * @return {number}
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.getPrice = function() {
+  return /** @type {number} */ (jspb.Message.getFloatingPointFieldWithDefault(this, 8, 0.0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.setPrice = function(value) {
+  return jspb.Message.setProto3FloatField(this, 8, value);
+};
+
+
+/**
+ * optional string tif = 9;
+ * @return {string}
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.getTif = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.setTif = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
 };
 
 

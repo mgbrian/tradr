@@ -121,6 +121,33 @@ def _account_values_snapshot_to_response(snapshot):
     return service_pb2.GetAccountValuesResponse(account_values=records)
 
 
+def _abort_for_exception(context, exc: Exception):
+    """Map backend exceptions to canonical gRPC StatusCodes and abort the call.
+
+    - Business/validation errors return INVALID_ARGUMENT.
+    - Infra/timeouts/etc. map to appropriate codes.
+    - Everything else maps to INTERNAL.
+    """
+    if isinstance(exc, ValueError):
+        code = grpc.StatusCode.INVALID_ARGUMENT
+
+    elif isinstance(exc, KeyError):
+        code = grpc.StatusCode.NOT_FOUND
+
+    elif isinstance(exc, TimeoutError):
+        code = grpc.StatusCode.DEADLINE_EXCEEDED
+
+    elif isinstance(exc, PermissionError):
+        code = grpc.StatusCode.PERMISSION_DENIED
+
+    else:
+        code = grpc.StatusCode.INTERNAL
+
+    # Log with traceback and abort
+    logger.exception("RPC failed (%s): %s", code.name, exc)
+    context.abort(code, str(exc))
+
+
 class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
     """gRPC servicer that adapts to TradingAPI."""
 
@@ -135,7 +162,10 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
     # --- Place Orders ---
 
     def PlaceStockOrder(self, request, context):
-        """Place a stock market order.
+        """Place a stock order.
+
+        Supports market, limit, and stop orders. Server forwards
+        the type/price/tif fields to the API and returns the broker/DB ids.
 
         Args:
             request: service_pb2.PlaceStockOrderRequest
@@ -144,10 +174,20 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
             service_pb2.PlaceOrderResponse
         """
         try:
+            order_type = (request.order_type or 'MKT').upper()
+            # For LMT/STP, limit_price must be present (validated in API as well)
+            limit_price = request.limit_price if request.HasField("limit_price") else None
+            tif = (request.tif or 'DAY').upper()
+
             handle = self.api.place_stock_order(
-                request.symbol, request.side, int(request.quantity),
-                order_type='MKT'
+                request.symbol,
+                request.side,
+                int(request.quantity),
+                order_type=order_type,
+                limit_price=limit_price,
+                tif=tif,
             )
+
             # Fetch the order to fill in status/message if available
             rec = self.api.get_order(handle.order_id) or {}
 
@@ -159,16 +199,13 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
             )
 
         except Exception as e:
-            logger.exception("PlaceStockOrder failed")
-            return service_pb2.PlaceOrderResponse(
-                order_id=0,
-                broker_order_id=0,
-                status="ERROR",
-                message=str(e)
-            )
+            _abort_for_exception(context, e)
 
     def PlaceOptionOrder(self, request, context):
-        """Place an option market order.
+        """Place an option order.
+
+        Supports market, limit, and stop orders. Server forwards
+        the type/price/tif fields to the API and returns the broker/DB ids.
 
         Args:
             request: service_pb2.PlaceOptionOrderRequest
@@ -177,10 +214,20 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
             service_pb2.PlaceOrderResponse
         """
         try:
+            order_type = (request.order_type or 'MKT').upper()
+            limit_price = request.limit_price if request.HasField("limit_price") else None
+            tif = (request.tif or 'DAY').upper()
+
             handle = self.api.place_option_order(
-                request.symbol, request.expiry, float(request.strike),
-                request.right, request.side, int(request.quantity),
-                order_type='MKT'
+                request.symbol,
+                request.expiry,
+                float(request.strike),
+                request.right,
+                request.side,
+                int(request.quantity),
+                order_type=order_type,
+                limit_price=limit_price,
+                tif=tif,
             )
             rec = self.api.get_order(handle.order_id) or {}
 
@@ -192,13 +239,7 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
             )
 
         except Exception as e:
-            logger.exception("PlaceOptionOrder failed")
-            return service_pb2.PlaceOrderResponse(
-                order_id=0,
-                broker_order_id=0,
-                status="ERROR",
-                message=str(e)
-            )
+            _abort_for_exception(context, e)
 
     # --- Orders / Fills ---
 
@@ -211,8 +252,12 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         Returns:
             service_pb2.OrderRecord - Order (empty if not found).
         """
-        rec = self.api.get_order(int(request.order_id))
-        return _order_dict_to_record(rec or {})
+        try:
+            rec = self.api.get_order(int(request.order_id))
+            return _order_dict_to_record(rec or {})
+
+        except Exception as e:
+            _abort_for_exception(context, e)
 
     def ListOrders(self, request, context):
         """List recent orders.
@@ -223,8 +268,12 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         Returns:
             service_pb2.ListOrdersResponse - Orders list.
         """
-        rows = self.api.list_orders(limit=int(request.limit) if request.limit else None)
-        return service_pb2.ListOrdersResponse(orders=[_order_dict_to_record(r) for r in rows])
+        try:
+            rows = self.api.list_orders(limit=int(request.limit) if request.limit else None)
+            return service_pb2.ListOrdersResponse(orders=[_order_dict_to_record(r) for r in rows])
+
+        except Exception as e:
+            _abort_for_exception(context, e)
 
     def ListFills(self, request, context):
         """List fills, optionally filtered by order id.
@@ -235,10 +284,14 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         Returns:
             service_pb2.ListFillsResponse - Fills list.
         """
-        order_id = int(request.order_id) if request.order_id else None
-        rows = self.api.list_fills(order_id=order_id, limit=int(request.limit) if request.limit else None)
+        try:
+            order_id = int(request.order_id) if request.order_id else None
+            rows = self.api.list_fills(order_id=order_id, limit=int(request.limit) if request.limit else None)
 
-        return service_pb2.ListFillsResponse(fills=[_fill_dict_to_record(r) for r in rows])
+            return service_pb2.ListFillsResponse(fills=[_fill_dict_to_record(r) for r in rows])
+
+        except Exception as e:
+            _abort_for_exception(context, e)
 
     # --- Portfolio ---
 
@@ -251,8 +304,12 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         Returns:
             service_pb2.GetPositionsResponse - Positions list.
         """
-        snap = self.api.get_positions()
-        return _positions_snapshot_to_response(snap)
+        try:
+            snap = self.api.get_positions()
+            return _positions_snapshot_to_response(snap)
+
+        except Exception as e:
+            _abort_for_exception(context, e)
 
     def GetAccountValues(self, request, context):
         """Return current account values snapshot.
@@ -263,8 +320,12 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         Returns:
             service_pb2.GetAccountValuesResponse - Account values list.
         """
-        snap = self.api.get_account_values()
-        return _account_values_snapshot_to_response(snap)
+        try:
+            snap = self.api.get_account_values()
+            return _account_values_snapshot_to_response(snap)
+
+        except Exception as e:
+            _abort_for_exception(context, e)
 
 
 def serve(address=DEFAULT_SERVER_ADDRESS, *, db=None, ib=None, api=None, position_tracker=None,

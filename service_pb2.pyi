@@ -7,30 +7,42 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class PlaceStockOrderRequest(_message.Message):
-    __slots__ = ("symbol", "side", "quantity")
+    __slots__ = ("symbol", "side", "quantity", "order_type", "price", "tif")
     SYMBOL_FIELD_NUMBER: _ClassVar[int]
     SIDE_FIELD_NUMBER: _ClassVar[int]
     QUANTITY_FIELD_NUMBER: _ClassVar[int]
+    ORDER_TYPE_FIELD_NUMBER: _ClassVar[int]
+    PRICE_FIELD_NUMBER: _ClassVar[int]
+    TIF_FIELD_NUMBER: _ClassVar[int]
     symbol: str
     side: str
     quantity: int
-    def __init__(self, symbol: _Optional[str] = ..., side: _Optional[str] = ..., quantity: _Optional[int] = ...) -> None: ...
+    order_type: str
+    price: float
+    tif: str
+    def __init__(self, symbol: _Optional[str] = ..., side: _Optional[str] = ..., quantity: _Optional[int] = ..., order_type: _Optional[str] = ..., price: _Optional[float] = ..., tif: _Optional[str] = ...) -> None: ...
 
 class PlaceOptionOrderRequest(_message.Message):
-    __slots__ = ("symbol", "expiry", "strike", "right", "side", "quantity")
+    __slots__ = ("symbol", "expiry", "strike", "right", "side", "quantity", "order_type", "price", "tif")
     SYMBOL_FIELD_NUMBER: _ClassVar[int]
     EXPIRY_FIELD_NUMBER: _ClassVar[int]
     STRIKE_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
     SIDE_FIELD_NUMBER: _ClassVar[int]
     QUANTITY_FIELD_NUMBER: _ClassVar[int]
+    ORDER_TYPE_FIELD_NUMBER: _ClassVar[int]
+    PRICE_FIELD_NUMBER: _ClassVar[int]
+    TIF_FIELD_NUMBER: _ClassVar[int]
     symbol: str
     expiry: str
     strike: float
     right: str
     side: str
     quantity: int
-    def __init__(self, symbol: _Optional[str] = ..., expiry: _Optional[str] = ..., strike: _Optional[float] = ..., right: _Optional[str] = ..., side: _Optional[str] = ..., quantity: _Optional[int] = ...) -> None: ...
+    order_type: str
+    price: float
+    tif: str
+    def __init__(self, symbol: _Optional[str] = ..., expiry: _Optional[str] = ..., strike: _Optional[float] = ..., right: _Optional[str] = ..., side: _Optional[str] = ..., quantity: _Optional[int] = ..., order_type: _Optional[str] = ..., price: _Optional[float] = ..., tif: _Optional[str] = ...) -> None: ...
 
 class PlaceOrderResponse(_message.Message):
     __slots__ = ("order_id", "broker_order_id", "status", "message")
