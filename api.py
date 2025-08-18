@@ -80,6 +80,10 @@ class OrderHandle:
             'created_at': self.created_at,
         }
 
+    def __str__(self):
+        """Use dict version of self for string representation."""
+        return str(self.to_dict())
+
 
 class TradingAPI:
     """High-level API exposing stable functionality."""
