@@ -75,7 +75,7 @@ If the web UI is needed, you must start the whole system (using the instructions
 
 ...then call the API via gRPC (you can't use the raw API in this case -- gRPC is pretty optimized anyway and only adds minor overhead):
 
-### grpc_client_example.py
+#### grpc_client_example.py
 
 ```python
 from client import TradingClient
