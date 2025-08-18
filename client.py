@@ -296,30 +296,10 @@ class TradingClient:
 
     # --- Snake_case aliases
 
-    def place_stock_order(self, symbol, side, quantity, timeout=None):
-        """Alias for PlaceStockOrder."""
-        return self.PlaceStockOrder(symbol, side, quantity, timeout=timeout)
-
-    def place_option_order(self, symbol, expiry, strike, right, side, quantity, timeout=None):
-        """Alias for PlaceOptionOrder."""
-        return self.PlaceOptionOrder(symbol, expiry, strike, right, side, quantity, timeout=timeout)
-
-    def get_order(self, order_id, timeout=None):
-        """Alias for GetOrder."""
-        return self.GetOrder(order_id, timeout=timeout)
-
-    def list_orders(self, limit=None, timeout=None):
-        """Alias for ListOrders."""
-        return self.ListOrders(limit=limit, timeout=timeout)
-
-    def list_fills(self, order_id=None, limit=None, timeout=None):
-        """Alias for ListFills."""
-        return self.ListFills(order_id=order_id, limit=limit, timeout=timeout)
-
-    def get_positions(self, timeout=None):
-        """Alias for GetPositions."""
-        return self.GetPositions(timeout=timeout)
-
-    def get_account_values(self, timeout=None):
-        """Alias for GetAccountValues."""
-        return self.GetAccountValues(timeout=timeout)
+    place_stock_order = PlaceStockOrder
+    place_option_order = PlaceOptionOrder
+    get_order = GetOrder
+    list_orders = ListOrders
+    list_fills = ListFills
+    get_positions = GetPositions
+    get_account_values = GetAccountValues
