@@ -317,17 +317,19 @@ class TradingAPI:
         """Cancel an existing order at the broker and update the DB.
 
         This method:
-          1. Looks up the order in the DB to find the broker order id,
-          2. Marks the order as 'CANCEL_REQUESTED',
-          3. Submits the cancel to IB via OrderManager,
-          4. Leaves final state transition (e.g. 'CANCELLED') to the execution tracker
-             when the broker confirms the cancellation.
+            1. Looks up the order in the DB to find the broker order id,
+            2. If already FILLED or CANCELLED, returns False without contacting broker,
+            3. Otherwise marks the order as 'CANCEL_REQUESTED',
+            4. Submits the cancel to IB via OrderManager,
+            5. Leaves final state transition (e.g. 'CANCELLED') to the execution tracker
+                when the broker confirms the cancellation.
 
         Args:
             order_id: int - Internal order id to cancel.
 
         Returns:
-            bool - True if a cancel request was submitted to the broker.
+            bool - True if a cancel request was submitted to the broker; False when
+                    the order is already finalized (FILLED/CANCELLED).
 
         Raises:
             KeyError - If the order does not exist.
@@ -338,6 +340,12 @@ class TradingAPI:
         if not rec:
             raise KeyError(f"order {order_id} not found")
 
+        # If already finalized, do not send a cancel to the broker.
+        status = str(rec.get('status') or '').upper()
+        if status in ('FILLED', 'CANCELLED'):
+            logger.info("Order %s already %s; skipping cancel.", order_id, status)
+            return False
+
         broker_order_id = rec.get('broker_order_id')
         if not broker_order_id:
             # We cannot target a specific order at IB without a broker order id.
@@ -346,24 +354,27 @@ class TradingAPI:
         # Mark as cancel requested; execution tracker will update later to CANCELLED/REJECTED.
         try:
             self.db.update_order(order_id, {'status': 'CANCEL_REQUESTED'})
-
         except Exception:
             # Non-fatal; proceed to attempt broker cancel.
-            logger.exception(f"Failed to mark order {order_id} as CANCEL_REQUESTED. Proceeding with broker cancel")
+            logger.exception(
+                "Failed to mark order %s as CANCEL_REQUESTED. Proceeding with broker cancel",
+                order_id
+            )
 
         try:
             ok = self.orders.cancel_order(int(broker_order_id))
             return bool(ok)
-
         except Exception as e:
             # Record error for visibility
             try:
                 self.db.update_order(order_id, {'status': 'ERROR', 'error': str(e)})
-
             except Exception:
                 logger.exception("Failed to persist cancel error for order %s", order_id)
 
-            logger.exception("Cancel request failed for order %s (broker_order_id=%s)", order_id, broker_order_id)
+            logger.exception(
+                "Cancel request failed for order %s (broker_order_id=%s)",
+                order_id, broker_order_id
+            )
             raise RuntimeError(f"Broker cancel failed: {e}")
 
     def get_order_status(self, order_id):

@@ -365,7 +365,7 @@ class TestTradingAPI(unittest.TestCase):
         self.mock_orders.cancel_order.assert_called_once_with(42)
         self.assertTrue(ok)
 
-    def dont_test_cancel_order_already_finalized_returns_false(self):
+    def test_cancel_order_already_finalized_returns_false(self):
         """If order is already FILLED or CANCELLED, do not call broker and return False."""
         self.mock_db.get_order.return_value = {'order_id': 1, 'status': 'FILLED', 'broker_order_id': 50}
 
