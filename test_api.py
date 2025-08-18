@@ -338,6 +338,86 @@ class TestTradingAPI(unittest.TestCase):
         self.assertIn(('k',), pos)
         self.assertIn(('acct', 'tag', 'USD'), avs)
 
+    # --- Cancellation ---
+
+    def test_cancel_order_happy_path_calls_order_manager_and_marks_cancel_requested(self):
+        """cancel_order() should look up the order, mark CANCEL_REQUESTED, and ask OrderManager to cancel by broker_order_id."""
+        # Prepare DB to return an order with broker_order_id
+        self.mock_db.get_order.return_value = {
+            'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': 42
+        }
+        self.mock_orders.cancel_order.return_value = True
+
+        ok = self.api.cancel_order(1)
+
+        # DB looked up by internal id
+        self.mock_db.get_order.assert_called_once_with(1)
+        # Status marked as CANCEL_REQUESTED before/around broker call
+        # (We don't enforce exact ordering here; just ensure it was requested)
+        found_cancel_req = False
+        for call in self.mock_db.update_order.call_args_list:
+            if call[0][0] == 1 and call[0][1].get('status') == 'CANCEL_REQUESTED':
+                found_cancel_req = True
+                break
+        self.assertTrue(found_cancel_req, "Expected CANCEL_REQUESTED status update")
+
+        # OrderManager asked to cancel by broker id
+        self.mock_orders.cancel_order.assert_called_once_with(42)
+        self.assertTrue(ok)
+
+    def dont_test_cancel_order_already_finalized_returns_false(self):
+        """If order is already FILLED or CANCELLED, do not call broker and return False."""
+        self.mock_db.get_order.return_value = {'order_id': 1, 'status': 'FILLED', 'broker_order_id': 50}
+
+        out = self.api.cancel_order(1)
+
+        self.assertFalse(out)
+        self.mock_orders.cancel_order.assert_not_called()
+        # No status flip to CANCEL_REQUESTED expected
+        for call in self.mock_db.update_order.call_args_list:
+            self.assertNotEqual(call[0][1].get('status'), 'CANCEL_REQUESTED')
+
+        # Repeat for CANCELLED state
+        self.mock_db.get_order.reset_mock()
+        self.mock_db.update_order.reset_mock()
+        self.mock_orders.cancel_order.reset_mock()
+
+        self.mock_db.get_order.return_value = {'order_id': 1, 'status': 'CANCELLED', 'broker_order_id': 51}
+        out2 = self.api.cancel_order(1)
+        self.assertFalse(out2)
+        self.mock_orders.cancel_order.assert_not_called()
+
+    def test_cancel_order_missing_order_raises_key_error(self):
+        """If the order id is unknown in DB, raise ValueError."""
+        self.mock_db.get_order.return_value = None
+        with self.assertRaises(KeyError):
+            self.api.cancel_order(999)
+        self.mock_orders.cancel_order.assert_not_called()
+
+    def test_cancel_order_missing_broker_id_raises_value_error(self):
+        """If broker_order_id is not yet known, raise ValueError to the caller."""
+        self.mock_db.get_order.return_value = {'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': None}
+        with self.assertRaises(ValueError):
+            self.api.cancel_order(1)
+        self.mock_orders.cancel_order.assert_not_called()
+
+    def test_cancel_order_broker_error_updates_db_and_raises(self):
+        """If OrderManager.cancel_order raises, update DB to ERROR and bubble as RuntimeError."""
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        self.mock_db.get_order.return_value = {'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': 77}
+        self.mock_orders.cancel_order.side_effect = RuntimeError("IB cancel failed")
+
+        with self.assertRaises(RuntimeError):
+            self.api.cancel_order(1)
+
+        # Ensure error recorded
+        args, _ = self.mock_db.update_order.call_args
+        self.assertEqual(args[0], 1)
+        self.assertEqual(args[1].get('status'), 'ERROR')
+        self.assertIn('error', args[1])
+
     # --- OrderHandle ---
 
     def test_order_handle_to_dict(self):

@@ -316,6 +316,13 @@ class TradingAPI:
     def cancel_order(self, order_id):
         """Cancel an existing order at the broker and update the DB.
 
+        This method:
+          1. Looks up the order in the DB to find the broker order id,
+          2. Marks the order as 'CANCEL_REQUESTED',
+          3. Submits the cancel to IB via OrderManager,
+          4. Leaves final state transition (e.g. 'CANCELLED') to the execution tracker
+             when the broker confirms the cancellation.
+
         Args:
             order_id: int - Internal order id to cancel.
 
@@ -323,11 +330,41 @@ class TradingAPI:
             bool - True if a cancel request was submitted to the broker.
 
         Raises:
-            NotImplementedError - Until wired with broker's cancel mechanics.
+            KeyError - If the order does not exist.
+            ValueError - If the order has no broker_order_id yet (cannot target).
+            RuntimeError - If broker submission fails.
         """
-        # TODO: Map internal order_id -> broker_order_id and call ib.cancelOrder(...)
-        # TODO: Update DB status to 'CANCEL_REQUESTED' then 'CANCELLED' upon confirmation.
-        raise NotImplementedError("cancel_order is not implemented yet")
+        rec = self.db.get_order(order_id)
+        if not rec:
+            raise KeyError(f"order {order_id} not found")
+
+        broker_order_id = rec.get('broker_order_id')
+        if not broker_order_id:
+            # We cannot target a specific order at IB without a broker order id.
+            raise ValueError(f"order {order_id} has no broker_order_id yet")
+
+        # Mark as cancel requested; execution tracker will update later to CANCELLED/REJECTED.
+        try:
+            self.db.update_order(order_id, {'status': 'CANCEL_REQUESTED'})
+
+        except Exception:
+            # Non-fatal; proceed to attempt broker cancel.
+            logger.exception(f"Failed to mark order {order_id} as CANCEL_REQUESTED. Proceeding with broker cancel")
+
+        try:
+            ok = self.orders.cancel_order(int(broker_order_id))
+            return bool(ok)
+
+        except Exception as e:
+            # Record error for visibility
+            try:
+                self.db.update_order(order_id, {'status': 'ERROR', 'error': str(e)})
+
+            except Exception:
+                logger.exception("Failed to persist cancel error for order %s", order_id)
+
+            logger.exception("Cancel request failed for order %s (broker_order_id=%s)", order_id, broker_order_id)
+            raise RuntimeError(f"Broker cancel failed: {e}")
 
     def get_order_status(self, order_id):
         """Get the current status for an order.

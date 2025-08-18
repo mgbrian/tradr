@@ -4,21 +4,16 @@ Handles the creation and submission of orders for stocks and options. Provides
 high-level functions for common trade operations (buy, sell, short, cover) and
 delegates contract creation to the Contract Factory.
 
-DONE:
-- Market orders.
-- Direct execution.
-
 TODO:
-- Limit, stop, and advanced order types.
+- Advanced order types.
 - Order status
-- Cancel orders.
 - Retry and error handling logic.
 - DB for logging orders and fills.
 - Batch order submission.
 """
 import asyncio
 
-from ib_async import MarketOrder, LimitOrder, StopOrder
+from ib_async import MarketOrder, LimitOrder, StopOrder, Order  # Order used for cancel by orderId
 from contracts import OptionType, create_stock_contract, create_option_contract
 
 
@@ -65,6 +60,40 @@ class OrderManager:
         fut = asyncio.run_coroutine_threadsafe(_coro(), loop)
         return fut.result(timeout or self._default_timeout)
 
+    def cancel_order(self, broker_order_id, timeout=None):
+        """Request cancellation of an existing order by broker order id.
+
+        This schedules a small coroutine onto IB's loop that calls
+        `IB.cancelOrder(...)`. We construct a minimal `Order` carrying just the
+        `orderId` so IB can identify the target order.
+
+        Args:
+            broker_order_id: int - The broker's order id (IB orderId).
+            timeout: float (Optional) - Seconds to wait. Uses default if None.
+
+        Returns:
+            bool - True if the cancel request was sent to IB without error.
+                   (Final state transitions are reported via order status events.)
+
+        Raises:
+            RuntimeError - If IB loop is unavailable or the call times out.
+            Exception - Any broker error raised by ib_async.
+        """
+        loop = getattr(self.ib, 'loop', None)
+        if loop is None:
+            raise RuntimeError("IB event loop not pinned. Did IBSession.connect() run?")
+
+        order = Order()
+        order.orderId = int(broker_order_id)
+
+        async def _coro():
+            # ib_async's cancelOrder accepts an Order (with orderId set), or a Trade.
+            self.ib.cancelOrder(order)
+            return True
+
+        fut = asyncio.run_coroutine_threadsafe(_coro(), loop)
+        return bool(fut.result(timeout or self._default_timeout))
+
     @staticmethod
     def _build_order(side, quantity, order_type='MKT', price=None, tif='DAY'):
         """Factory for Market/Limit/Stop orders with TIF applied."""
@@ -73,8 +102,6 @@ class OrderManager:
 
         if tif:
             tif = str(tif).upper()
-
-
             if tif not in SUPPORTED_TIF_VALUES:
                 raise ValueError(f"Unsupported tif value: {tif}. Must be one of: {', '.join(SUPPORTED_TIF_VALUES)}")
 
@@ -237,7 +264,6 @@ class OrderManager:
 
         contract = create_option_contract(symbol, expiry, strike, OptionType(right))
         order = self._build_order('SELL', quantity, order_type, price, tif)
-        return self._place_on_ib_loop(contract, order)
 
         return self._place_on_ib_loop(contract, order)
 

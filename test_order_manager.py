@@ -19,6 +19,7 @@ class TestOrderManager(unittest.TestCase):
         self.patcher_market_order = patch("order_manager.MarketOrder")
         self.patcher_limit_order = patch("order_manager.LimitOrder")
         self.patcher_stop_order = patch("order_manager.StopOrder")
+        self.patcher_order_for_cancel = patch("order_manager.Order")  # for cancel support
         self.patcher_stock_factory = patch("order_manager.create_stock_contract")
         self.patcher_option_factory = patch("order_manager.create_option_contract")
 
@@ -28,6 +29,7 @@ class TestOrderManager(unittest.TestCase):
         self.MockMarketOrder = self.patcher_market_order.start()
         self.MockLimitOrder = self.patcher_limit_order.start()
         self.MockStopOrder = self.patcher_stop_order.start()
+        self.MockOrder = self.patcher_order_for_cancel.start()
         self.create_stock_contract = self.patcher_stock_factory.start()
         self.create_option_contract = self.patcher_option_factory.start()
         self.mock_rcts = self.patcher_rcts.start()
@@ -35,6 +37,7 @@ class TestOrderManager(unittest.TestCase):
         self.addCleanup(self.patcher_market_order.stop)
         self.addCleanup(self.patcher_limit_order.stop)
         self.addCleanup(self.patcher_stop_order.stop)
+        self.addCleanup(self.patcher_order_for_cancel.stop)
         self.addCleanup(self.patcher_stock_factory.stop)
         self.addCleanup(self.patcher_option_factory.stop)
         self.addCleanup(self.patcher_rcts.stop)
@@ -53,6 +56,10 @@ class TestOrderManager(unittest.TestCase):
         self.MockMarketOrder.return_value = self.fake_mkt_order
         self.MockLimitOrder.return_value = self.fake_lmt_order
         self.MockStopOrder.return_value = self.fake_stp_order
+
+        # For cancel path, create a specific fake Order instance we can inspect.
+        self.fake_order_for_cancel = MagicMock()
+        self.MockOrder.return_value = self.fake_order_for_cancel
 
         # placeOrder returns a "trade" object
         self.fake_trade = object()
@@ -273,7 +280,91 @@ class TestOrderManager(unittest.TestCase):
                 symbol="AAPL", quantity=1, order_type="LMT", price=123.0, tif="IOC"  # assume not yet supported
             )
 
-    # TODO: Tests for option limit/stop orders.
+    # --- Option limit/stop orders ---
+
+    def test_buy_option_limit_builds_limitorder_and_sets_tif(self):
+        """buy_option() LMT should call LimitOrder with BUY, price and TIF, then place."""
+        trade = self.order_manager.buy_option(
+            "AAPL", "20251219", 150.0, "C", 2, order_type="LMT", price=1.23, tif="GTC"
+        )
+        self.create_option_contract.assert_called_once_with("AAPL", "20251219", 150.0, OptionType.CALL)
+        self.MockLimitOrder.assert_called_once_with("BUY", 2, 1.23, tif="GTC")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_option_contract, self.fake_lmt_order)
+        self.assertIs(trade, self.fake_trade)
+
+    def test_sell_option_stop_builds_stoporder_and_sets_tif(self):
+        """sell_option() STP should call StopOrder with SELL, price and TIF, then place."""
+        trade = self.order_manager.sell_option(
+            "SPY", "20260116", 420.0, "P", 3, order_type="STP", price=0.55, tif="DAY"
+        )
+        self.create_option_contract.assert_called_once_with("SPY", "20260116", 420.0, OptionType.PUT)
+        self.MockStopOrder.assert_called_once_with("SELL", 3, 0.55, tif="DAY")
+        self.mock_ib.placeOrder.assert_called_once_with(self.fake_option_contract, self.fake_stp_order)
+        self.assertIs(trade, self.fake_trade)
+
+    def test_option_limit_missing_price_raises(self):
+        """Option LMT without price should raise ValueError."""
+        with self.assertRaises(ValueError):
+            self.order_manager.buy_option(
+                "AAPL", "20251219", 150.0, "C", 1, order_type="LMT", price=None
+            )
+
+    def test_option_invalid_tif_raises(self):
+        """Option with unsupported TIF should raise ValueError."""
+        with self.assertRaises(ValueError):
+            self.order_manager.sell_option(
+                "AAPL", "20251219", 150.0, "P", 1, order_type="LMT", price=1.0, tif="IOC"
+            )
+
+    # --- Cancellation ---
+
+    def test_cancel_order_hops_to_loop_builds_minimal_order_and_calls_ib(self):
+        """cancel_order() should create Order() with orderId, hop to loop, and call ib.cancelOrder()."""
+        ok = self.order_manager.cancel_order(12345)
+
+        # Minimal Order() created and we set orderId on it
+        self.MockOrder.assert_called_once_with()
+        self.assertEqual(self.fake_order_for_cancel.orderId, 12345)
+        # Cancel called with that order handle
+        self.mock_ib.cancelOrder.assert_called_once_with(self.fake_order_for_cancel)
+        # Hop occurred and default timeout used
+        self.mock_rcts.assert_called_once()
+        self.assertTrue(ok)
+        self.assertAlmostEqual(self._last_future.last_timeout, self.order_manager._default_timeout)
+
+    def test_cancel_order_uses_timeout_override(self):
+        """cancel_order() should respect the passed timeout override."""
+        _ = self.order_manager.cancel_order(77, timeout=2.5)
+        self.assertAlmostEqual(self._last_future.last_timeout, 2.5)
+
+    def test_cancel_order_missing_ib_loop_raises_runtime_error(self):
+        """If ib.loop is not set/pinned, cancel_order should raise and not schedule anything."""
+        self.mock_ib.loop = None
+        with self.assertRaises(RuntimeError):
+            self.order_manager.cancel_order(1)
+        self.mock_rcts.assert_not_called()
+
+    def test_cancel_order_timeout_propagates(self):
+        """Timeout from the cancel future should propagate to caller."""
+        def _timeout_side_effect(coro, loop):
+            # Prevent pending coroutine warning
+            try:
+                coro.close()
+
+            except Exception:
+                pass
+
+            class _TimeoutFuture:
+                def result(self, timeout=None):
+                    raise TimeoutError("simulated timeout")
+
+            return _TimeoutFuture()
+
+        self.mock_rcts.side_effect = _timeout_side_effect
+
+        with self.assertRaises(TimeoutError):
+            self.order_manager.cancel_order(999)
+        self.mock_rcts.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ TODO:
     - Add schema validation and stronger types where appropriate.
       ** This should be covered if we're using the Django ORM.
 - Stretch Goal: Provide durable write-ahead if needed for crash recovery.
+- get_order, etc. should check Postgres if the order isn't in the inmemorydb
 """
 
 import itertools
