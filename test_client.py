@@ -23,6 +23,9 @@ class TestTradingClient(unittest.TestCase):
         self.stub.PlaceOptionOrder.return_value = service_pb2.PlaceOrderResponse(
             order_id=11, broker_order_id=22, status="SUBMITTED", message="ok"
         )
+        self.stub.CancelOrder.return_value = service_pb2.CancelOrderResponse(
+            ok=True, status="CANCEL_REQUESTED", message=""
+        )
         self.stub.GetOrder.return_value = service_pb2.OrderRecord(
             order_id=7,
             broker_order_id=70,
@@ -235,6 +238,34 @@ class TestTradingClient(unittest.TestCase):
         _ = self.client.PlaceOptionOrder("AAPL", "20251219", 150.0, "C", "BUY", 1, timeout=3.3)
         _args, kwargs = self.stub.PlaceOptionOrder.call_args
         self.assertEqual(kwargs.get("timeout"), 3.3)
+
+    # --- CancelOrder ---
+
+    def test_cancel_order_returns_plain_dict_and_uses_default_timeout(self):
+        out = self.client.cancel_order(1)
+        self.assertEqual(out, {
+            'ok': True,
+            'status': 'CANCEL_REQUESTED',
+            'message': '',
+        })
+        args, kwargs = self.stub.CancelOrder.call_args
+        self.assertIsInstance(args[0], service_pb2.CancelOrderRequest)
+        self.assertEqual(args[0].order_id, 1)
+        self.assertEqual(kwargs.get("timeout"), 0.75)
+
+    def test_cancel_order_overrides_timeout(self):
+        _ = self.client.CancelOrder(7, timeout=2.2)
+        _args, kwargs = self.stub.CancelOrder.call_args
+        self.assertEqual(kwargs.get("timeout"), 2.2)
+
+    def test_cancel_order_false_ok_is_propagated(self):
+        self.stub.CancelOrder.return_value = service_pb2.CancelOrderResponse(
+            ok=False, status="FILLED", message="already filled"
+        )
+        out = self.client.cancel_order(5)
+        self.assertEqual(out['ok'], False)
+        self.assertEqual(out['status'], "FILLED")
+        self.assertEqual(out['message'], "already filled")
 
     # --- GetOrder/ListOrders ---
 

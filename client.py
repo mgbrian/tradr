@@ -18,6 +18,8 @@ import grpc
 import service_pb2
 import service_pb2_grpc
 
+# TODO: Should we handle catch server aborts/rpc errors here?
+
 
 def _order_record_to_dict(msg):
     """Convert a service_pb2.OrderRecord into a dict."""
@@ -212,6 +214,25 @@ class TradingClient:
             'message': resp.message,
         }
 
+    def CancelOrder(self, order_id, *, timeout=None):
+        """Request cancellation of an existing order by internal id.
+
+        Args:
+            order_id: int - Internal order id to cancel.
+            timeout: float - Optional RPC timeout in seconds. Uses instance default if not provided.
+
+        Returns:
+            dict - {'ok': bool, 'status': str, 'message': str}
+        """
+        timeout = timeout or self.timeout
+        req = service_pb2.CancelOrderRequest(order_id=int(order_id))
+        resp = self._stub.CancelOrder(req, timeout=timeout)
+        return {
+            'ok': bool(resp.ok),
+            'status': resp.status,
+            'message': resp.message,
+        }
+
     def GetOrder(self, order_id, timeout=None):
         """Fetch a single order by id.
 
@@ -298,6 +319,7 @@ class TradingClient:
 
     place_stock_order = PlaceStockOrder
     place_option_order = PlaceOptionOrder
+    cancel_order = CancelOrder
     get_order = GetOrder
     list_orders = ListOrders
     list_fills = ListFills
