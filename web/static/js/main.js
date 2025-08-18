@@ -110,12 +110,17 @@ function badgeForStatus(status) {
     const cls =
         s === 'FILLED' ?
         'badge--success' :
-        s === 'SUBMITTED' || s === 'PENDING' ?
+        s === 'SUBMITTED' || s === 'PENDING' || s === 'PENDING_SUBMIT' || s === 'ACKED' || s === 'CANCEL_REQUESTED' ?
         'badge--info' :
-        s === 'CANCELLED' || s === 'REJECTED' ?
+        s === 'CANCELLED' || s === 'REJECTED' || s === 'ERROR' ?
         '' :
         'badge--info';
     return `<span class="badge ${cls}">${fmt(status)}</span>`;
+}
+
+const FINAL_STATES = new Set(['FILLED', 'CANCELLED', 'REJECTED']);
+function isFinalStatus(status) {
+    return FINAL_STATES.has((status || '').toUpperCase());
 }
 
 // --- gRPC Wiring
@@ -244,6 +249,69 @@ async function placeManualOrder() {
     }
 }
 
+// --- Cancellation helpers & handlers
+
+function getSelectedOrderIds() {
+    const boxes = document.querySelectorAll('#orders-table tbody input.order-select[type=checkbox]:checked');
+    return Array.from(boxes).map(b => Number(b.dataset.orderId)).filter(Number.isFinite);
+}
+
+function getAllCancellableOrderIds() {
+    const boxes = document.querySelectorAll('#orders-table tbody input.order-select[type=checkbox]:not([disabled])');
+    return Array.from(boxes).map(b => Number(b.dataset.orderId)).filter(Number.isFinite);
+}
+
+async function cancelSelectedOrders() {
+    if (!grpcClient) return;
+    const ids = getSelectedOrderIds();
+    if (!ids.length) {
+        addNotification('No orders selected', 'warn');
+        return;
+    }
+    await cancelMany(ids, 'selected');
+}
+
+async function cancelAllOrders() {
+    if (!grpcClient) return;
+    const ids = getAllCancellableOrderIds();
+    if (!ids.length) {
+        addNotification('No cancellable orders found', 'warn');
+        return;
+    }
+    await cancelMany(ids, 'all');
+}
+
+async function cancelMany(ids, label) {
+    try {
+        const results = await Promise.allSettled(ids.map(id => grpcClient.CancelOrder(id)));
+        let ok = 0, skipped = 0, failed = 0;
+        results.forEach((res, i) => {
+            const id = ids[i];
+            if (res.status === 'fulfilled') {
+                const { ok: okFlag, status, message } = res.value || {};
+                if (okFlag) {
+                    ok += 1;
+                    addNotification(`Cancel requested for #${id}${status ? ` (${status})` : ''}`, 'info');
+                } else {
+                    skipped += 1;
+                    addNotification(`Cancel skipped for #${id}${message ? `: ${message}` : ''}`, 'warn');
+                }
+            } else {
+                failed += 1;
+                const reason = res.reason && res.reason.message ? res.reason.message : String(res.reason);
+                addNotification(`Cancel failed for #${id}: ${reason}`, 'error');
+            }
+        });
+        if (label) {
+            addNotification(`Cancel ${label}: ${ok} requested, ${skipped} skipped, ${failed} failed`, failed ? 'warn' : 'info');
+        }
+        refreshOrdersAndFills();
+    } catch (err) {
+        console.error(err);
+        addNotification(`Cancel ${label} failed: ${err && err.message ? err.message : err}`, 'error');
+    }
+}
+
 // --- Renderers
 
 /**
@@ -255,9 +323,19 @@ function renderOrders(rows) {
     if (!tbody) return;
     empty(tbody);
     for (const r of rows) {
+        const final = isFinalStatus(r.status);
         const tr = document.createElement('tr');
+        tr.setAttribute('data-order-id', String(r.order_id));
+        tr.setAttribute('data-status', String(r.status || ''));
+
         tr.innerHTML = `
-      <td><input type="checkbox" /></td>
+      <td>
+        <input
+          type="checkbox"
+          class="order-select"
+          data-order-id="${fmt(r.order_id)}"
+          ${final ? 'disabled' : ''} />
+      </td>
       <td>${fmt(r.order_id)}</td>
       <td>${fmt(r.created_at || '')}</td>
       <td>${fmt(r.symbol)}</td>
@@ -271,6 +349,10 @@ function renderOrders(rows) {
     `;
         tbody.appendChild(tr);
     }
+
+    // Keep header "select all" state sane after re-render
+    const selectAll = document.querySelector('#orders-table thead input[type=checkbox]');
+    if (selectAll) selectAll.checked = false;
 }
 
 /**
@@ -387,7 +469,7 @@ function wireEvents() {
     const placeBtn = $('place-order-button');
     if (placeBtn) placeBtn.addEventListener('click', placeManualOrder);
 
-    // Optional: enable/disable price field depending on type selection.
+    // Enable/disable price field depending on type selection.
     const typeSel = $('order-type');
     const priceInput = $('order-limit-price');
     if (typeSel && priceInput) {
@@ -402,23 +484,17 @@ function wireEvents() {
         togglePrice();
     }
 
+    // --- Cancellation buttons
     const cancelSel = $('orders-cancel-selected-button');
-    if (cancelSel)
-        cancelSel.addEventListener('click', () =>
-            addNotification('Cancel selected: not yet implemented', 'warn')
-        );
+    if (cancelSel) cancelSel.addEventListener('click', cancelSelectedOrders);
 
     const cancelAll = $('orders-cancel-all-button');
-    if (cancelAll)
-        cancelAll.addEventListener('click', () =>
-            addNotification('Cancel all: not yet implemented', 'warn')
-        );
+    if (cancelAll) cancelAll.addEventListener('click', cancelAllOrders);
 
     const modifyBtn = $('orders-modify-button');
-    if (modifyBtn)
-        modifyBtn.addEventListener('click', () =>
-            addNotification('Modify: not yet implemented', 'warn')
-        );
+    if (modifyBtn) modifyBtn.addEventListener('click', () =>
+        addNotification('Modify: not yet implemented', 'warn')
+    );
 
     const algoStop = $('algo-stop-button');
     if (algoStop)
@@ -430,6 +506,15 @@ function wireEvents() {
                 badge.classList.remove('badge--success');
             }
         });
+
+    // Select-all checkbox for orders table
+    const selectAll = document.querySelector('#orders-table thead input[type=checkbox]');
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            const boxes = document.querySelectorAll('#orders-table tbody input.order-select[type=checkbox]:not([disabled])');
+            boxes.forEach(b => { b.checked = !!selectAll.checked; });
+        });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

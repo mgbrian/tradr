@@ -7686,6 +7686,21 @@
       };
     }
     /**
+     * Request cancellation of an existing order by internal id.
+     * @param {number} orderId
+     * @returns {Promise<{ok:boolean, status:string, message:string}>}
+     */
+    async CancelOrder(orderId) {
+      const req = new messages.CancelOrderRequest();
+      req.setOrderId(Number(orderId));
+      const resp = await this.client.cancelOrder(req, this.metadata);
+      return {
+        ok: !!resp.getOk(),
+        status: resp.getStatus(),
+        message: resp.getMessage()
+      };
+    }
+    /**
      * Fetch a single order by internal id.
      * @param {number} orderId
      * @returns {Promise<Object>} - Plain order object.
