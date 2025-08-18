@@ -21,9 +21,10 @@ message PlaceStockOrderRequest {
   string side = 2;  // "BUY" | "SELL" | "SHORT" | "COVER"
   int32 quantity = 3;
 
-  string order_type = 4;  // "MKT" (default) | "LMT" | "STP"
-  double price = 5;  // For LMT or STP; ignored for MKT
-  string tif = 6;  // "DAY" (default) | "GTC" | etc.
+  // Mark these explicitly as optional so HasField() returns a boolean instead of throwing a ValueError
+  optional string order_type = 4;  // "MKT" (default) | "LMT" | "STP"
+  optional double price = 5;  // For LMT or STP; ignored for MKT
+  optional string tif = 6;  // "DAY" (default) | "GTC" | etc.
 }
 
 message PlaceOptionOrderRequest {
@@ -34,9 +35,10 @@ message PlaceOptionOrderRequest {
   string side = 5; // "BUY" | "SELL"
   int32 quantity = 6;
 
-  string order_type = 7; // "MKT" (default) | "LMT" | "STP"
-  double price = 8; // For LMT or STP; ignored for MKT
-  string tif = 9; // "DAY" (default) | "GTC" | etc.
+  // Mark these explicitly as optional so HasField() returns a boolean instead of throwing a ValueError
+  optional string order_type = 7; // "MKT" (default) | "LMT" | "STP"
+  optional double price = 8; // For LMT or STP; ignored for MKT
+  optional string tif = 9; // "DAY" (default) | "GTC" | etc.
 }
 
 message PlaceOrderResponse {
