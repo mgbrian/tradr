@@ -19,6 +19,9 @@ let pollTimerOrders = null;
 // number
 let pollTimerPortfolio = null;
 
+// Persist selected orders across re-renders
+const selectedOrderIds = new Set();
+
 // --- DOM helpers
 
 /**
@@ -252,8 +255,8 @@ async function placeManualOrder() {
 // --- Cancellation helpers & handlers
 
 function getSelectedOrderIds() {
-    const boxes = document.querySelectorAll('#orders-table tbody input.order-select[type=checkbox]:checked');
-    return Array.from(boxes).map(b => Number(b.dataset.orderId)).filter(Number.isFinite);
+    // Use the stable set (survives re-renders)
+    return Array.from(selectedOrderIds);
 }
 
 function getAllCancellableOrderIds() {
@@ -321,11 +324,24 @@ async function cancelMany(ids, label) {
 function renderOrders(rows) {
     const tbody = bySelector('#orders-table tbody');
     if (!tbody) return;
+
     empty(tbody);
+
+    // Track which ids are present to prune stale selections
+    const presentIds = new Set();
+
     for (const r of rows) {
+        const id = Number(r.order_id);
+        presentIds.add(id);
+
         const final = isFinalStatus(r.status);
+        // Ensure we don't keep selections for final orders
+        if (final) selectedOrderIds.delete(id);
+
+        const checked = selectedOrderIds.has(id) && !final;
+
         const tr = document.createElement('tr');
-        tr.setAttribute('data-order-id', String(r.order_id));
+        tr.setAttribute('data-order-id', String(id));
         tr.setAttribute('data-status', String(r.status || ''));
 
         tr.innerHTML = `
@@ -333,8 +349,9 @@ function renderOrders(rows) {
         <input
           type="checkbox"
           class="order-select"
-          data-order-id="${fmt(r.order_id)}"
-          ${final ? 'disabled' : ''} />
+          data-order-id="${String(id)}"
+          ${final ? 'disabled' : ''}
+          ${checked ? 'checked' : ''} />
       </td>
       <td>${fmt(r.order_id)}</td>
       <td>${fmt(r.created_at || '')}</td>
@@ -350,9 +367,20 @@ function renderOrders(rows) {
         tbody.appendChild(tr);
     }
 
+    // Prune selections for orders that disappeared from the table
+    for (const selId of Array.from(selectedOrderIds)) {
+        if (!presentIds.has(selId)) selectedOrderIds.delete(selId);
+    }
+
     // Keep header "select all" state sane after re-render
     const selectAll = document.querySelector('#orders-table thead input[type=checkbox]');
-    if (selectAll) selectAll.checked = false;
+    if (selectAll) {
+        const boxes = tbody.querySelectorAll('input.order-select:not([disabled])');
+        const allSelected = boxes.length > 0 && Array.from(boxes).every(b => b.checked);
+        selectAll.checked = allSelected;
+        // tristate isn't supported natively; could set selectAll.indeterminate when some selected
+        selectAll.indeterminate = !allSelected && Array.from(boxes).some(b => b.checked);
+    }
 }
 
 /**
@@ -511,8 +539,40 @@ function wireEvents() {
     const selectAll = document.querySelector('#orders-table thead input[type=checkbox]');
     if (selectAll) {
         selectAll.addEventListener('change', () => {
+            const tbody = document.querySelector('#orders-table tbody');
             const boxes = document.querySelectorAll('#orders-table tbody input.order-select[type=checkbox]:not([disabled])');
-            boxes.forEach(b => { b.checked = !!selectAll.checked; });
+            boxes.forEach(b => {
+                b.checked = !!selectAll.checked;
+                const id = Number(b.dataset.orderId);
+                if (!Number.isFinite(id)) return;
+                if (selectAll.checked) selectedOrderIds.add(id);
+                else selectedOrderIds.delete(id);
+            });
+            // keep header state coherent if there are no boxes
+            const any = boxes.length > 0;
+            selectAll.indeterminate = false;
+            selectAll.checked = any && !!selectAll.checked;
+        });
+    }
+
+    // Row checkbox changes -> keep selection set + header in sync
+    const tbody = document.querySelector('#orders-table tbody');
+    if (tbody) {
+        tbody.addEventListener('change', (e) => {
+            const cb = e.target;
+            if (!cb.matches('input.order-select[type=checkbox]')) return;
+            const id = Number(cb.dataset.orderId);
+            if (!Number.isFinite(id)) return;
+            if (cb.checked) selectedOrderIds.add(id);
+            else selectedOrderIds.delete(id);
+
+            const head = document.querySelector('#orders-table thead input[type=checkbox]');
+            if (head) {
+                const boxes = tbody.querySelectorAll('input.order-select:not([disabled])');
+                const allSelected = boxes.length > 0 && Array.from(boxes).every(b => b.checked);
+                head.checked = allSelected;
+                head.indeterminate = !allSelected && Array.from(boxes).some(b => b.checked);
+            }
         });
     }
 }
