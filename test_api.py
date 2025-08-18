@@ -418,6 +418,175 @@ class TestTradingAPI(unittest.TestCase):
         self.assertEqual(args[1].get('status'), 'ERROR')
         self.assertIn('error', args[1])
 
+    # --- Modification ---
+
+    def test_modify_order_stock_happy_path_updates_db_and_calls_order_manager(self):
+        """modify_order() on a stock should mark MODIFY_REQUESTED and call modify_stock_order with merged fields."""
+        self.mock_db.get_order.return_value = {
+            'order_id': 1,
+            'status': 'SUBMITTED',
+            'broker_order_id': 42,
+            'asset_class': 'STK',
+            'symbol': 'MSFT',
+            'side': 'SELL',
+            'qty': 10,
+            'order_type': 'LMT',
+            'limit_price': 250.0,
+            'tif': 'DAY',
+        }
+
+        self.mock_orders.modify_stock_order.return_value = object()
+
+        ok = self.api.modify_order(
+            1, quantity=15, limit_price=251.0, tif='GTC', order_type='LMT'
+        )
+        self.assertTrue(ok)
+
+        # DB looked up
+        self.mock_db.get_order.assert_called_once_with(1)
+
+        # Status marked as MODIFY_REQUESTED with new fields
+        found_modify_req = False
+        for call in self.mock_db.update_order.call_args_list:
+            if call[0][0] == 1 and call[0][1].get('status') == 'MODIFY_REQUESTED':
+                self.assertEqual(call[0][1]['qty'], 15)
+                self.assertEqual(call[0][1]['order_type'], 'LMT')
+                self.assertEqual(call[0][1]['limit_price'], 251.0)
+                self.assertEqual(call[0][1]['tif'], 'GTC')
+                found_modify_req = True
+                break
+        self.assertTrue(found_modify_req, "Expected MODIFY_REQUESTED status update")
+
+        # SELL side remains SELL action on modify
+        self.mock_orders.modify_stock_order.assert_called_once_with(
+            'MSFT', 42, 'SELL', 15, order_type='LMT', price=251.0, tif='GTC'
+        )
+
+    def test_modify_order_option_happy_path_uses_defaults_and_calls_order_manager(self):
+        """When some params are omitted, modify_order() should default to existing values from DB (options)."""
+        self.mock_db.get_order.return_value = {
+            'order_id': 1,
+            'status': 'SUBMITTED',
+            'broker_order_id': 77,
+            'asset_class': 'OPT',
+            'symbol': 'AAPL',
+            'expiry': '20251219',
+            'strike': 150.0,
+            'right': 'C',
+            'side': 'BUY',
+            'qty': 2,
+            'order_type': 'LMT',
+            'limit_price': 1.00,
+            'tif': 'DAY',
+        }
+
+        self.mock_orders.modify_option_order.return_value = object()
+
+        # Change only type/price; quantity and tif should fall back to DB values
+        ok = self.api.modify_order(1, order_type='STP', limit_price=2.0)
+        self.assertTrue(ok)
+
+        self.mock_orders.modify_option_order.assert_called_once_with(
+            'AAPL', '20251219', 150.0, 'C', 77, 'BUY', 2,
+            order_type='STP', price=2.0, tif='DAY'
+        )
+
+        # DB was marked as modify requested with merged fields
+        found_modify_req = False
+        for call in self.mock_db.update_order.call_args_list:
+            if call[0][0] == 1 and call[0][1].get('status') == 'MODIFY_REQUESTED':
+                self.assertEqual(call[0][1]['qty'], 2)
+                self.assertEqual(call[0][1]['order_type'], 'STP')
+                self.assertEqual(call[0][1]['limit_price'], 2.0)
+                self.assertEqual(call[0][1]['tif'], 'DAY')
+                found_modify_req = True
+                break
+        self.assertTrue(found_modify_req)
+
+    def test_modify_order_final_state_raises(self):
+        """Finalized orders cannot be modified."""
+        self.mock_db.get_order.return_value = {
+            'order_id': 1, 'status': 'FILLED', 'broker_order_id': 10
+        }
+        with self.assertRaises(ValueError):
+            self.api.modify_order(1, quantity=5)
+        self.mock_orders.modify_stock_order.assert_not_called()
+        self.mock_orders.modify_option_order.assert_not_called()
+
+    def test_modify_order_missing_broker_id_raises(self):
+        """If no broker_order_id yet, modification should raise."""
+        self.mock_db.get_order.return_value = {
+            'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': None, 'asset_class': 'STK', 'qty': 1
+        }
+        with self.assertRaises(ValueError):
+            self.api.modify_order(1, quantity=2)
+        self.mock_orders.modify_stock_order.assert_not_called()
+
+    def test_modify_order_invalid_tif_raises(self):
+        """Unsupported TIF passed to modify should raise and not call OrderManager."""
+        self.mock_db.get_order.return_value = {
+            'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': 5,
+            'asset_class': 'STK', 'symbol': 'AAPL', 'side': 'BUY', 'qty': 1,
+            'order_type': 'MKT', 'tif': 'DAY'
+        }
+        with self.assertRaises(ValueError):
+            self.api.modify_order(1, tif='IOC')
+        self.mock_orders.modify_stock_order.assert_not_called()
+
+    def test_modify_order_invalid_type_raises(self):
+        """Unsupported order_type passed to modify should raise."""
+        self.mock_db.get_order.return_value = {
+            'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': 5,
+            'asset_class': 'STK', 'symbol': 'AAPL', 'side': 'BUY', 'qty': 1,
+            'order_type': 'MKT', 'tif': 'DAY'
+        }
+        with self.assertRaises(ValueError):
+            self.api.modify_order(1, order_type='FAKE')
+        self.mock_orders.modify_stock_order.assert_not_called()
+
+    def test_modify_order_lmt_missing_price_raises(self):
+        """LMT/STP without price should raise when DB doesn't have a price either."""
+        self.mock_db.get_order.return_value = {
+            'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': 5,
+            'asset_class': 'STK', 'symbol': 'AAPL', 'side': 'BUY', 'qty': 1,
+            'order_type': 'MKT', 'limit_price': None, 'tif': 'DAY'
+        }
+        with self.assertRaises(ValueError):
+            self.api.modify_order(1, order_type='LMT')
+        self.mock_orders.modify_stock_order.assert_not_called()
+
+    def test_modify_order_nonpositive_qty_raises(self):
+        """Quantity must be positive."""
+        self.mock_db.get_order.return_value = {
+            'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': 5,
+            'asset_class': 'STK', 'symbol': 'AAPL', 'side': 'BUY', 'qty': 1,
+            'order_type': 'MKT', 'tif': 'DAY'
+        }
+        with self.assertRaises(ValueError):
+            self.api.modify_order(1, quantity=0)
+        self.mock_orders.modify_stock_order.assert_not_called()
+
+    def test_modify_order_broker_error_updates_db_and_raises(self):
+        """If OrderManager.modify_* raises, DB should record ERROR and RuntimeError should bubble."""
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        self.mock_db.get_order.return_value = {
+            'order_id': 1, 'status': 'SUBMITTED', 'broker_order_id': 42,
+            'asset_class': 'STK', 'symbol': 'MSFT', 'side': 'SELL', 'qty': 10,
+            'order_type': 'LMT', 'limit_price': 250.0, 'tif': 'DAY'
+        }
+        self.mock_orders.modify_stock_order.side_effect = RuntimeError("route down")
+
+        with self.assertRaises(RuntimeError):
+            self.api.modify_order(1, quantity=12, limit_price=251.0)
+
+        # Ensure error state recorded
+        args, _ = self.mock_db.update_order.call_args
+        self.assertEqual(args[0], 1)
+        self.assertEqual(args[1].get('status'), 'ERROR')
+        self.assertIn('error', args[1])
+
     # --- OrderHandle ---
 
     def test_order_handle_to_dict(self):

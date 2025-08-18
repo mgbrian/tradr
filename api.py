@@ -10,7 +10,7 @@ Design notes:
 4. The underlying machinery handles order status updates and fills automatically via event handlers.
 
 TODO:
-- Implement cancel and status tracking using order/exec events.
+- Implement status tracking using order/exec events.
 - Add idempotency keys (clientOrderId) to dedupe retries.
 - Add risk hooks (pre-trade checks) once Risk Engine is built.
 - Map broker errors into normalized error shapes.
@@ -311,7 +311,7 @@ class TradingAPI:
 
         return OrderHandle(order_id=order_id, broker_order_id=broker_order_id, symbol=symbol, side=side, qty=qty)
 
-    # --- Cancels / Order Status ---
+    # --- Cancel/Modify ---
 
     def cancel_order(self, order_id):
         """Cancel an existing order at the broker and update the DB.
@@ -376,6 +376,117 @@ class TradingAPI:
                 order_id, broker_order_id
             )
             raise RuntimeError(f"Broker cancel failed: {e}")
+
+    def modify_order(self, order_id, *, quantity=None, limit_price=None, tif=None, order_type=None):
+        """Modify an existing order at the broker and update the DB.
+
+        IB modifications are effected by re-submitting the order with the same
+        broker order id and new fields (quantity, type, price, TIF). This method:
+            1. Looks up the order in the DB to get contract details and broker id,
+            2. If the order is already final (FILLED/CANCELLED/REJECTED), raises ValueError,
+            3. Validates/merges provided fields with existing ones,
+            4. Marks DB as 'MODIFY_REQUESTED' (and updates the desired fields),
+            5. Submits the modification via OrderManager.
+
+        Args:
+            order_id: int - Internal order id to modify.
+            quantity: int (Optional) - New total quantity (defaults to current).
+            limit_price: float (Optional) - New limit/stop price when applicable.
+            tif: str (Optional) - New time-in-force (defaults to current).
+            order_type: str (Optional) - 'MKT' | 'LMT' | 'STP' (defaults to current).
+
+        Returns:
+            bool - True if a modify request was submitted to the broker.
+
+        Raises:
+            KeyError - If the order does not exist.
+            ValueError - If finalized or missing broker_order_id, or invalid params.
+            RuntimeError - If broker submission fails.
+        """
+        rec = self.db.get_order(order_id)
+        if not rec:
+            raise KeyError(f"order {order_id} not found")
+
+        # TODO: Should this return False (same as cancel)?
+        # TODO: Enumerate all statuses and match with IB e.g. Submitted (IB) <> SUBMITTED (internal)
+        status = str(rec.get('status') or '').upper()
+        if status in ('FILLED', 'CANCELLED', 'REJECTED'):
+            raise ValueError(f"order {order_id} is already {status}; cannot modify")
+
+        broker_order_id = rec.get('broker_order_id')
+        if not broker_order_id:
+            raise ValueError(f"order {order_id} has no broker_order_id yet")
+
+        # Merge new values with existing ones
+        new_qty = int(quantity if quantity is not None else rec.get('qty') or rec.get('quantity') or 0)
+        if new_qty <= 0:
+            raise ValueError("quantity must be a positive integer")
+
+        new_tif = (tif or rec.get('tif') or 'DAY').upper()
+        if new_tif not in SUPPORTED_TIF_VALUES:
+            raise ValueError(f"Unsupported tif value: {new_tif}. Must be one of: {', '.join(SUPPORTED_TIF_VALUES)}")
+
+        new_type = (order_type or rec.get('order_type') or 'MKT').upper()
+        if new_type not in ('MKT', 'LMT', 'STP'):
+            raise ValueError("order_type must be one of: MKT, LMT, STP")
+
+        # For LMT/STP, require a price. For MKT, ignore price.
+        new_price = limit_price if limit_price is not None else rec.get('limit_price')
+        if new_type in ('LMT', 'STP') and (new_price is None):
+            raise ValueError(f"{new_type} order requires limit_price")
+
+        # Determine IB action from stored side semantics
+        side = str(rec.get('side') or '')
+        action = 'BUY' if side in ('BUY', 'COVER') else 'SELL'
+
+        # Persist desired new fields and mark modify requested (best-effort)
+        try:
+            self.db.update_order(order_id, {
+                'qty': new_qty,
+                'order_type': new_type,
+                'limit_price': float(new_price) if new_price is not None else None,
+                'tif': new_tif,
+                'status': 'MODIFY_REQUESTED',
+            })
+        except Exception:
+            logger.exception("Failed to mark order %s as MODIFY_REQUESTED; proceeding with broker modify", order_id)
+
+        # Rebuild contract and submit modify with same broker order id
+        asset = str(rec.get('asset_class') or '').upper()
+        try:
+            if asset == 'STK':
+                symbol = rec.get('symbol')
+                trade = self.orders.modify_stock_order(
+                    symbol, int(broker_order_id), action, new_qty,
+                    order_type=new_type, price=new_price, tif=new_tif
+                )
+
+            elif asset == 'OPT':
+                symbol = rec.get('symbol')
+                expiry = rec.get('expiry')
+                strike = rec.get('strike')
+                right = rec.get('right')
+                trade = self.orders.modify_option_order(
+                    symbol, expiry, strike, right, int(broker_order_id), action, new_qty,
+                    order_type=new_type, price=new_price, tif=new_tif
+                )
+
+            else:
+                raise ValueError(f"Unsupported asset_class for modify: {asset}")
+
+            # If call succeeded, consider the request submitted.
+            return True
+
+        except Exception as e:
+            try:
+                self.db.update_order(order_id, {'status': 'ERROR', 'error': str(e)})
+            except Exception:
+                logger.exception("Failed to persist modify error for order %s", order_id)
+
+            logger.exception("Modify request failed for order %s (broker_order_id=%s)", order_id, broker_order_id)
+            raise RuntimeError(f"Broker modify failed: {e}")
+
+    # --- Order Status ---
 
     def get_order_status(self, order_id):
         """Get the current status for an order.

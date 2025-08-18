@@ -13,7 +13,7 @@ TODO:
 """
 import asyncio
 
-from ib_async import MarketOrder, LimitOrder, StopOrder, Order  # Order used for cancel by orderId
+from ib_async import MarketOrder, LimitOrder, StopOrder, Order
 from contracts import OptionType, create_stock_contract, create_option_contract
 
 
@@ -59,40 +59,6 @@ class OrderManager:
 
         fut = asyncio.run_coroutine_threadsafe(_coro(), loop)
         return fut.result(timeout or self._default_timeout)
-
-    def cancel_order(self, broker_order_id, timeout=None):
-        """Request cancellation of an existing order by broker order id.
-
-        This schedules a small coroutine onto IB's loop that calls
-        `IB.cancelOrder(...)`. We construct a minimal `Order` carrying just the
-        `orderId` so IB can identify the target order.
-
-        Args:
-            broker_order_id: int - The broker's order id (IB orderId).
-            timeout: float (Optional) - Seconds to wait. Uses default if None.
-
-        Returns:
-            bool - True if the cancel request was sent to IB without error.
-                   (Final state transitions are reported via order status events.)
-
-        Raises:
-            RuntimeError - If IB loop is unavailable or the call times out.
-            Exception - Any broker error raised by ib_async.
-        """
-        loop = getattr(self.ib, 'loop', None)
-        if loop is None:
-            raise RuntimeError("IB event loop not pinned. Did IBSession.connect() run?")
-
-        order = Order()
-        order.orderId = int(broker_order_id)
-
-        async def _coro():
-            # ib_async's cancelOrder accepts an Order (with orderId set), or a Trade.
-            self.ib.cancelOrder(order)
-            return True
-
-        fut = asyncio.run_coroutine_threadsafe(_coro(), loop)
-        return bool(fut.result(timeout or self._default_timeout))
 
     @staticmethod
     def _build_order(side, quantity, order_type='MKT', price=None, tif='DAY'):
@@ -267,4 +233,91 @@ class OrderManager:
 
         return self._place_on_ib_loop(contract, order)
 
-    # TODO: get_order_status/cancel_order should use the same _place_on_ib_loop pattern where needed.
+    def cancel_order(self, broker_order_id, timeout=None):
+        """Request cancellation of an existing order by broker order id.
+
+        This schedules a small coroutine onto IB's loop that calls
+        `IB.cancelOrder(...)`. We construct a minimal `Order` carrying just the
+        `orderId` so IB can identify the target order.
+
+        Args:
+            broker_order_id: int - The broker's order id (IB orderId).
+            timeout: float (Optional) - Seconds to wait. Uses default if None.
+
+        Returns:
+            bool - True if the cancel request was sent to IB without error.
+                   (Final state transitions are reported via order status events.)
+
+        Raises:
+            RuntimeError - If IB loop is unavailable or the call times out.
+            Exception - Any broker error raised by ib_async.
+        """
+        loop = getattr(self.ib, 'loop', None)
+        if loop is None:
+            raise RuntimeError("IB event loop not pinned. Did IBSession.connect() run?")
+
+        order = Order()
+        order.orderId = int(broker_order_id)
+
+        async def _coro():
+            # ib_async's cancelOrder accepts an Order (with orderId set), or a Trade.
+            self.ib.cancelOrder(order)
+            return True
+
+        fut = asyncio.run_coroutine_threadsafe(_coro(), loop)
+        return bool(fut.result(timeout or self._default_timeout))
+
+    def modify_stock_order(self, symbol, broker_order_id, side, quantity, *, order_type='MKT', price=None, tif='DAY'):
+        """Modify an existing stock order by re-submitting with the same orderId.
+
+        IB treats modifications as a re-submit of the order with the same orderId and
+        updated fields (action/quantity/type/price/TIF). We construct an order using
+        the same builder as placement and set order.orderId to target the broker order.
+
+        Args:
+            symbol: str - Stock ticker e.g. "AAPL".
+            broker_order_id: int - The broker's order id (IB orderId).
+            side: str - 'BUY' or 'SELL'.
+            quantity: int - New total quantity.
+            order_type: str - 'MKT', 'LMT' or 'STP'. Default = 'MKT'
+            price: float - Limit or stop price when applicable.
+            tif: str - Time in force. 'DAY' or 'GTC'. Default = 'DAY'.
+
+        Returns:
+            Trade - The ib_async Trade handle.
+        """
+        contract = create_stock_contract(symbol)
+        order = self._build_order(side, quantity, order_type, price, tif)
+        order.orderId = int(broker_order_id)
+        return self._place_on_ib_loop(contract, order)
+
+    def modify_option_order(self, symbol, expiry, strike, right, broker_order_id, side, quantity, *, order_type='MKT', price=None, tif='DAY'):
+        """Modify an existing option order by re-submitting with the same orderId.
+
+        Args:
+            symbol: str - Underlying ticker.
+            expiry: str - Expiry in YYYYMMDD.
+            strike: float - Strike price.
+            right: str - 'C' or 'P'.
+            broker_order_id: int - The broker's order id (IB orderId).
+            side: str - 'BUY' or 'SELL'.
+            quantity: int - New total quantity.
+            order_type: str - 'MKT', 'LMT' or 'STP'. Default = 'MKT'
+            price: float - Limit or stop price when applicable.
+            tif: str - Time in force. 'DAY' or 'GTC'. Default = 'DAY'.
+
+        Returns:
+            Trade - The ib_async Trade handle.
+
+        Raises:
+            ValueError - If `right` is not 'C' or 'P'.
+        """
+        if right not in ('C', 'P'):
+            raise ValueError("right must be 'C' for Call or 'P' for Put")
+
+        contract = create_option_contract(symbol, expiry, strike, OptionType(right))
+        order = self._build_order(side, quantity, order_type, price, tif)
+        order.orderId = int(broker_order_id)
+        return self._place_on_ib_loop(contract, order)
+
+    # TODO: get_order_status should use the same _place_on_ib_loop pattern where needed.

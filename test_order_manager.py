@@ -366,6 +366,61 @@ class TestOrderManager(unittest.TestCase):
             self.order_manager.cancel_order(999)
         self.mock_rcts.assert_called_once()
 
+        # --- Modification ---
+
+        def test_modify_stock_order_limit_sets_order_id_and_calls_place(self):
+            """modify_stock_order() should build LimitOrder, set orderId, and place on IB loop."""
+            trade = self.order_manager.modify_stock_order(
+                symbol="AAPL",
+                broker_order_id=123,
+                side="BUY",
+                quantity=10,
+                order_type="LMT",
+                price=101.25,
+                tif="GTC",
+            )
+
+            # Contract factory and LimitOrder called with expected args
+            self.create_stock_contract.assert_called_once_with("AAPL")
+            self.MockLimitOrder.assert_called_once_with("BUY", 10, 101.25, tif="GTC")
+
+            # orderId should be set on the constructed order
+            self.assertEqual(self.fake_lmt_order.orderId, 123)
+
+            # Routed to IB and hopped to loop
+            self.mock_ib.placeOrder.assert_called_once_with(self.fake_stock_contract, self.fake_lmt_order)
+            self.mock_rcts.assert_called_once()
+            self.assertIs(trade, self.fake_trade)
+
+        def test_modify_option_order_stop_sets_order_id_and_calls_place(self):
+            """modify_option_order() should build StopOrder, set orderId, and place on IB loop."""
+            trade = self.order_manager.modify_option_order(
+                symbol="SPY",
+                expiry="20260116",
+                strike=420.0,
+                right="P",
+                broker_order_id=777,
+                side="SELL",
+                quantity=3,
+                order_type="STP",
+                price=0.55,
+                tif="DAY",
+            )
+
+            self.create_option_contract.assert_called_once_with("SPY", "20260116", 420.0, OptionType.PUT)
+            self.MockStopOrder.assert_called_once_with("SELL", 3, 0.55, tif="DAY")
+            self.assertEqual(self.fake_stp_order.orderId, 777)
+            self.mock_ib.placeOrder.assert_called_once_with(self.fake_option_contract, self.fake_stp_order)
+            self.mock_rcts.assert_called_once()
+            self.assertIs(trade, self.fake_trade)
+
+        def test_modify_option_order_invalid_right_raises(self):
+            """modify_option_order() should raise ValueError when right is not 'C' or 'P'."""
+            with self.assertRaises(ValueError):
+                self.order_manager.modify_option_order(
+                    "AAPL", "20251219", 150.0, "X", 123, "BUY", 1
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
