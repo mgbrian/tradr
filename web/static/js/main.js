@@ -195,29 +195,46 @@ async function refreshPortfolio() {
 }
 
 /**
- * Submit a manual market stock order via PlaceStockOrder.
- * Currently only supports MKT; LMT/STP are stubbed for Phase 1.
+ * Submit a manual stock order via PlaceStockOrder.
+ * Supports MKT / LMT / STP with optional TIF (DAY/GTC).
  */
 async function placeManualOrder() {
     if (!grpcClient) return;
     const symbol = $('order-symbol').value.trim().toUpperCase();
     const side = $('order-side').value;
     const qty = parseInt($('order-qty').value, 10) || 0;
-    const type = $('order-type').value;
+    const type = $('order-type').value; // "MKT" | "LMT" | "STP"
+    const tif = $('order-tif').value || 'DAY';
+
+    // For LMT/STP only
+    const priceRaw = $('order-limit-price').value;
+    const limitPrice =
+        priceRaw === '' || priceRaw === null || priceRaw === undefined
+            ? null
+            : Number(priceRaw);
 
     if (!symbol || !qty || qty <= 0) {
         addNotification('Enter a valid symbol and quantity', 'warn');
         return;
     }
-    if (type !== 'MKT') {
-        addNotification(`${type} orders not implemented in v0`, 'warn');
+    if ((type === 'LMT' || type === 'STP') && !(typeof limitPrice === 'number' && isFinite(limitPrice))) {
+        addNotification(`${type} requires a valid price`, 'warn');
         return;
     }
 
     try {
-        const resp = await grpcClient.PlaceStockOrder(symbol, side, qty);
+        // Pass price only when needed to preserve proto optional semantics.
+        const priceArg = (type === 'LMT' || type === 'STP') ? limitPrice : undefined;
+        const resp = await grpcClient.PlaceStockOrder(
+            symbol,
+            side,
+            qty,
+            type,
+            priceArg,
+            tif
+        );
         addNotification(
-            `Order placed: #${resp.order_id} (${symbol} ${side} x${qty})`,
+            `Order placed: #${resp.order_id} (${symbol} ${side} ${type} x${qty}${priceArg !== undefined ? ' @ ' + priceArg : ''}, ${tif})`,
             'info'
         );
         refreshOrdersAndFills();
@@ -369,6 +386,21 @@ function wireEvents() {
 
     const placeBtn = $('place-order-button');
     if (placeBtn) placeBtn.addEventListener('click', placeManualOrder);
+
+    // Optional: enable/disable price field depending on type selection.
+    const typeSel = $('order-type');
+    const priceInput = $('order-limit-price');
+    if (typeSel && priceInput) {
+        const togglePrice = () => {
+            const t = typeSel.value;
+            const wantsPrice = (t === 'LMT' || t === 'STP');
+            priceInput.disabled = !wantsPrice;
+            if (!wantsPrice) priceInput.value = '';
+            priceInput.placeholder = wantsPrice ? 'e.g. 123.45' : '—';
+        };
+        typeSel.addEventListener('change', togglePrice);
+        togglePrice();
+    }
 
     const cancelSel = $('orders-cancel-selected-button');
     if (cancelSel)
