@@ -4998,9 +4998,9 @@
             symbol: jspb.Message.getFieldWithDefault(msg, 1, ""),
             side: jspb.Message.getFieldWithDefault(msg, 2, ""),
             quantity: jspb.Message.getFieldWithDefault(msg, 3, 0),
-            orderType: jspb.Message.getFieldWithDefault(msg, 4, ""),
-            price: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0),
-            tif: jspb.Message.getFieldWithDefault(msg, 6, "")
+            orderType: (f = jspb.Message.getField(msg, 4)) == null ? void 0 : f,
+            price: (f = jspb.Message.getOptionalFloatingPointField(msg, 5)) == null ? void 0 : f,
+            tif: (f = jspb.Message.getField(msg, 6)) == null ? void 0 : f
           };
           if (includeInstance) {
             obj.$jspbMessageInstance = msg;
@@ -5097,22 +5097,25 @@
             f
           );
         }
-        f = message.getOrderType();
-        if (f.length > 0) {
+        f = /** @type {string} */
+        jspb.Message.getField(message, 4);
+        if (f != null) {
           writer.writeString(
             4,
             f
           );
         }
-        f = message.getPrice();
-        if (f !== 0) {
+        f = /** @type {number} */
+        jspb.Message.getField(message, 5);
+        if (f != null) {
           writer.writeDouble(
             5,
             f
           );
         }
-        f = message.getTif();
-        if (f.length > 0) {
+        f = /** @type {string} */
+        jspb.Message.getField(message, 6);
+        if (f != null) {
           writer.writeString(
             6,
             f
@@ -5153,7 +5156,13 @@
         );
       };
       proto.tradr.PlaceStockOrderRequest.prototype.setOrderType = function(value) {
-        return jspb.Message.setProto3StringField(this, 4, value);
+        return jspb.Message.setField(this, 4, value);
+      };
+      proto.tradr.PlaceStockOrderRequest.prototype.clearOrderType = function() {
+        return jspb.Message.setField(this, 4, void 0);
+      };
+      proto.tradr.PlaceStockOrderRequest.prototype.hasOrderType = function() {
+        return jspb.Message.getField(this, 4) != null;
       };
       proto.tradr.PlaceStockOrderRequest.prototype.getPrice = function() {
         return (
@@ -5162,7 +5171,13 @@
         );
       };
       proto.tradr.PlaceStockOrderRequest.prototype.setPrice = function(value) {
-        return jspb.Message.setProto3FloatField(this, 5, value);
+        return jspb.Message.setField(this, 5, value);
+      };
+      proto.tradr.PlaceStockOrderRequest.prototype.clearPrice = function() {
+        return jspb.Message.setField(this, 5, void 0);
+      };
+      proto.tradr.PlaceStockOrderRequest.prototype.hasPrice = function() {
+        return jspb.Message.getField(this, 5) != null;
       };
       proto.tradr.PlaceStockOrderRequest.prototype.getTif = function() {
         return (
@@ -5171,7 +5186,13 @@
         );
       };
       proto.tradr.PlaceStockOrderRequest.prototype.setTif = function(value) {
-        return jspb.Message.setProto3StringField(this, 6, value);
+        return jspb.Message.setField(this, 6, value);
+      };
+      proto.tradr.PlaceStockOrderRequest.prototype.clearTif = function() {
+        return jspb.Message.setField(this, 6, void 0);
+      };
+      proto.tradr.PlaceStockOrderRequest.prototype.hasTif = function() {
+        return jspb.Message.getField(this, 6) != null;
       };
       if (jspb.Message.GENERATE_TO_OBJECT) {
         proto.tradr.PlaceOptionOrderRequest.prototype.toObject = function(opt_includeInstance) {
@@ -5185,9 +5206,9 @@
             right: jspb.Message.getFieldWithDefault(msg, 4, ""),
             side: jspb.Message.getFieldWithDefault(msg, 5, ""),
             quantity: jspb.Message.getFieldWithDefault(msg, 6, 0),
-            orderType: jspb.Message.getFieldWithDefault(msg, 7, ""),
-            price: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0),
-            tif: jspb.Message.getFieldWithDefault(msg, 9, "")
+            orderType: (f = jspb.Message.getField(msg, 7)) == null ? void 0 : f,
+            price: (f = jspb.Message.getOptionalFloatingPointField(msg, 8)) == null ? void 0 : f,
+            tif: (f = jspb.Message.getField(msg, 9)) == null ? void 0 : f
           };
           if (includeInstance) {
             obj.$jspbMessageInstance = msg;
@@ -5326,22 +5347,25 @@
             f
           );
         }
-        f = message.getOrderType();
-        if (f.length > 0) {
+        f = /** @type {string} */
+        jspb.Message.getField(message, 7);
+        if (f != null) {
           writer.writeString(
             7,
             f
           );
         }
-        f = message.getPrice();
-        if (f !== 0) {
+        f = /** @type {number} */
+        jspb.Message.getField(message, 8);
+        if (f != null) {
           writer.writeDouble(
             8,
             f
           );
         }
-        f = message.getTif();
-        if (f.length > 0) {
+        f = /** @type {string} */
+        jspb.Message.getField(message, 9);
+        if (f != null) {
           writer.writeString(
             9,
             f
@@ -5409,7 +5433,13 @@
         );
       };
       proto.tradr.PlaceOptionOrderRequest.prototype.setOrderType = function(value) {
-        return jspb.Message.setProto3StringField(this, 7, value);
+        return jspb.Message.setField(this, 7, value);
+      };
+      proto.tradr.PlaceOptionOrderRequest.prototype.clearOrderType = function() {
+        return jspb.Message.setField(this, 7, void 0);
+      };
+      proto.tradr.PlaceOptionOrderRequest.prototype.hasOrderType = function() {
+        return jspb.Message.getField(this, 7) != null;
       };
       proto.tradr.PlaceOptionOrderRequest.prototype.getPrice = function() {
         return (
@@ -5418,7 +5448,13 @@
         );
       };
       proto.tradr.PlaceOptionOrderRequest.prototype.setPrice = function(value) {
-        return jspb.Message.setProto3FloatField(this, 8, value);
+        return jspb.Message.setField(this, 8, value);
+      };
+      proto.tradr.PlaceOptionOrderRequest.prototype.clearPrice = function() {
+        return jspb.Message.setField(this, 8, void 0);
+      };
+      proto.tradr.PlaceOptionOrderRequest.prototype.hasPrice = function() {
+        return jspb.Message.getField(this, 8) != null;
       };
       proto.tradr.PlaceOptionOrderRequest.prototype.getTif = function() {
         return (
@@ -5427,7 +5463,13 @@
         );
       };
       proto.tradr.PlaceOptionOrderRequest.prototype.setTif = function(value) {
-        return jspb.Message.setProto3StringField(this, 9, value);
+        return jspb.Message.setField(this, 9, value);
+      };
+      proto.tradr.PlaceOptionOrderRequest.prototype.clearTif = function() {
+        return jspb.Message.setField(this, 9, void 0);
+      };
+      proto.tradr.PlaceOptionOrderRequest.prototype.hasTif = function() {
+        return jspb.Message.getField(this, 9) != null;
       };
       if (jspb.Message.GENERATE_TO_OBJECT) {
         proto.tradr.PlaceOrderResponse.prototype.toObject = function(opt_includeInstance) {

@@ -408,9 +408,9 @@ proto.tradr.PlaceStockOrderRequest.toObject = function(includeInstance, msg) {
 symbol: jspb.Message.getFieldWithDefault(msg, 1, ""),
 side: jspb.Message.getFieldWithDefault(msg, 2, ""),
 quantity: jspb.Message.getFieldWithDefault(msg, 3, 0),
-orderType: jspb.Message.getFieldWithDefault(msg, 4, ""),
-price: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0.0),
-tif: jspb.Message.getFieldWithDefault(msg, 6, "")
+orderType: (f = jspb.Message.getField(msg, 4)) == null ? undefined : f,
+price: (f = jspb.Message.getOptionalFloatingPointField(msg, 5)) == null ? undefined : f,
+tif: (f = jspb.Message.getField(msg, 6)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -521,22 +521,22 @@ proto.tradr.PlaceStockOrderRequest.serializeBinaryToWriter = function(message, w
       f
     );
   }
-  f = message.getOrderType();
-  if (f.length > 0) {
+  f = /** @type {string} */ (jspb.Message.getField(message, 4));
+  if (f != null) {
     writer.writeString(
       4,
       f
     );
   }
-  f = message.getPrice();
-  if (f !== 0.0) {
+  f = /** @type {number} */ (jspb.Message.getField(message, 5));
+  if (f != null) {
     writer.writeDouble(
       5,
       f
     );
   }
-  f = message.getTif();
-  if (f.length > 0) {
+  f = /** @type {string} */ (jspb.Message.getField(message, 6));
+  if (f != null) {
     writer.writeString(
       6,
       f
@@ -613,7 +613,25 @@ proto.tradr.PlaceStockOrderRequest.prototype.getOrderType = function() {
  * @return {!proto.tradr.PlaceStockOrderRequest} returns this
  */
 proto.tradr.PlaceStockOrderRequest.prototype.setOrderType = function(value) {
-  return jspb.Message.setProto3StringField(this, 4, value);
+  return jspb.Message.setField(this, 4, value);
+};
+
+
+/**
+ * Clears the field making it undefined.
+ * @return {!proto.tradr.PlaceStockOrderRequest} returns this
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.clearOrderType = function() {
+  return jspb.Message.setField(this, 4, undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.hasOrderType = function() {
+  return jspb.Message.getField(this, 4) != null;
 };
 
 
@@ -631,7 +649,25 @@ proto.tradr.PlaceStockOrderRequest.prototype.getPrice = function() {
  * @return {!proto.tradr.PlaceStockOrderRequest} returns this
  */
 proto.tradr.PlaceStockOrderRequest.prototype.setPrice = function(value) {
-  return jspb.Message.setProto3FloatField(this, 5, value);
+  return jspb.Message.setField(this, 5, value);
+};
+
+
+/**
+ * Clears the field making it undefined.
+ * @return {!proto.tradr.PlaceStockOrderRequest} returns this
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.clearPrice = function() {
+  return jspb.Message.setField(this, 5, undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.hasPrice = function() {
+  return jspb.Message.getField(this, 5) != null;
 };
 
 
@@ -649,7 +685,25 @@ proto.tradr.PlaceStockOrderRequest.prototype.getTif = function() {
  * @return {!proto.tradr.PlaceStockOrderRequest} returns this
  */
 proto.tradr.PlaceStockOrderRequest.prototype.setTif = function(value) {
-  return jspb.Message.setProto3StringField(this, 6, value);
+  return jspb.Message.setField(this, 6, value);
+};
+
+
+/**
+ * Clears the field making it undefined.
+ * @return {!proto.tradr.PlaceStockOrderRequest} returns this
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.clearTif = function() {
+  return jspb.Message.setField(this, 6, undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.tradr.PlaceStockOrderRequest.prototype.hasTif = function() {
+  return jspb.Message.getField(this, 6) != null;
 };
 
 
@@ -691,9 +745,9 @@ strike: jspb.Message.getFloatingPointFieldWithDefault(msg, 3, 0.0),
 right: jspb.Message.getFieldWithDefault(msg, 4, ""),
 side: jspb.Message.getFieldWithDefault(msg, 5, ""),
 quantity: jspb.Message.getFieldWithDefault(msg, 6, 0),
-orderType: jspb.Message.getFieldWithDefault(msg, 7, ""),
-price: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0.0),
-tif: jspb.Message.getFieldWithDefault(msg, 9, "")
+orderType: (f = jspb.Message.getField(msg, 7)) == null ? undefined : f,
+price: (f = jspb.Message.getOptionalFloatingPointField(msg, 8)) == null ? undefined : f,
+tif: (f = jspb.Message.getField(msg, 9)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -837,22 +891,22 @@ proto.tradr.PlaceOptionOrderRequest.serializeBinaryToWriter = function(message, 
       f
     );
   }
-  f = message.getOrderType();
-  if (f.length > 0) {
+  f = /** @type {string} */ (jspb.Message.getField(message, 7));
+  if (f != null) {
     writer.writeString(
       7,
       f
     );
   }
-  f = message.getPrice();
-  if (f !== 0.0) {
+  f = /** @type {number} */ (jspb.Message.getField(message, 8));
+  if (f != null) {
     writer.writeDouble(
       8,
       f
     );
   }
-  f = message.getTif();
-  if (f.length > 0) {
+  f = /** @type {string} */ (jspb.Message.getField(message, 9));
+  if (f != null) {
     writer.writeString(
       9,
       f
@@ -983,7 +1037,25 @@ proto.tradr.PlaceOptionOrderRequest.prototype.getOrderType = function() {
  * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
  */
 proto.tradr.PlaceOptionOrderRequest.prototype.setOrderType = function(value) {
-  return jspb.Message.setProto3StringField(this, 7, value);
+  return jspb.Message.setField(this, 7, value);
+};
+
+
+/**
+ * Clears the field making it undefined.
+ * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.clearOrderType = function() {
+  return jspb.Message.setField(this, 7, undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.hasOrderType = function() {
+  return jspb.Message.getField(this, 7) != null;
 };
 
 
@@ -1001,7 +1073,25 @@ proto.tradr.PlaceOptionOrderRequest.prototype.getPrice = function() {
  * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
  */
 proto.tradr.PlaceOptionOrderRequest.prototype.setPrice = function(value) {
-  return jspb.Message.setProto3FloatField(this, 8, value);
+  return jspb.Message.setField(this, 8, value);
+};
+
+
+/**
+ * Clears the field making it undefined.
+ * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.clearPrice = function() {
+  return jspb.Message.setField(this, 8, undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.hasPrice = function() {
+  return jspb.Message.getField(this, 8) != null;
 };
 
 
@@ -1019,7 +1109,25 @@ proto.tradr.PlaceOptionOrderRequest.prototype.getTif = function() {
  * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
  */
 proto.tradr.PlaceOptionOrderRequest.prototype.setTif = function(value) {
-  return jspb.Message.setProto3StringField(this, 9, value);
+  return jspb.Message.setField(this, 9, value);
+};
+
+
+/**
+ * Clears the field making it undefined.
+ * @return {!proto.tradr.PlaceOptionOrderRequest} returns this
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.clearTif = function() {
+  return jspb.Message.setField(this, 9, undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.tradr.PlaceOptionOrderRequest.prototype.hasTif = function() {
+  return jspb.Message.getField(this, 9) != null;
 };
 
 
