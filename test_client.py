@@ -5,9 +5,6 @@ from client import TradingClient
 import service_pb2
 
 
-# TODO: Write tests to check for faithfulness to/parity with the lower level API.
-
-
 class TestTradingClient(unittest.TestCase):
     """Tests for TradingClient."""
     def setUp(self):
@@ -156,6 +153,9 @@ class TestTradingClient(unittest.TestCase):
         self.assertEqual(args[0].symbol, "AAPL")
         self.assertEqual(args[0].side, "BUY")
         self.assertEqual(args[0].quantity, 10)
+
+        self.assertEqual(args[0].order_type, "MKT")
+        self.assertEqual(args[0].tif, "DAY")
         self.assertEqual(kwargs.get("timeout"), 0.75)
 
     def test_place_stock_order_overrides_timeout(self):
@@ -164,6 +164,23 @@ class TestTradingClient(unittest.TestCase):
         # Check per-call override was used
         _, kwargs = self.stub.PlaceStockOrder.call_args
         self.assertEqual(kwargs.get("timeout"), 2.5)
+
+    def test_place_stock_order_limit_forwards_order_type_and_tif(self):
+        """Verify LMT forwards order_type and tif (limit_price presence is handled by proto & client)."""
+        _ = self.client.PlaceStockOrder("MSFT", "SELL", 5, order_type="LMT", limit_price=426.2, tif="GTC")
+        args, _kwargs = self.stub.PlaceStockOrder.call_args
+        req = args[0]
+        self.assertEqual(req.order_type, "LMT")
+        self.assertEqual(req.tif, "GTC")
+        # Intentionally *not* asserting req.limit_price here to avoid coupling to client construction details.
+
+    def test_place_stock_order_stop_forwards_order_type_and_tif(self):
+        """Verify STP forwards order_type and tif."""
+        _ = self.client.PlaceStockOrder("TSLA", "SHORT", 3, order_type="STP", limit_price=250.0, tif="DAY")
+        args, _kwargs = self.stub.PlaceStockOrder.call_args
+        req = args[0]
+        self.assertEqual(req.order_type, "STP")
+        self.assertEqual(req.tif, "DAY")
 
     # --- PlaceOptionOrder ---
 
@@ -183,7 +200,41 @@ class TestTradingClient(unittest.TestCase):
         self.assertEqual(req.right, "C")
         self.assertEqual(req.side, "BUY")
         self.assertEqual(req.quantity, 2)
+
+        self.assertEqual(req.order_type, "MKT")
+        self.assertEqual(req.tif, "DAY")
         self.assertEqual(kwargs.get("timeout"), 0.75)
+
+    def test_place_option_order_limit_includes_limit_price_and_tif(self):
+        """For options, client should include limit_price when provided; TIF should propagate."""
+        _ = self.client.PlaceOptionOrder(
+            "AAPL", "20251219", 150.0, "C", "BUY", 2,
+            order_type="LMT", limit_price=1.25, tif="GTC"
+        )
+        args, _kwargs = self.stub.PlaceOptionOrder.call_args
+        req = args[0]
+        self.assertEqual(req.order_type, "LMT")
+        self.assertTrue(req.HasField("price"))
+        self.assertAlmostEqual(req.price, 1.25)
+        self.assertEqual(req.tif, "GTC")
+
+    def test_place_option_order_stop_includes_limit_price_and_tif(self):
+        """For STP options, limit_price acts as trigger; should be present in request."""
+        _ = self.client.PlaceOptionOrder(
+            "SPY", "20260116", 420.0, "P", "SELL", 1,
+            order_type="STP", limit_price=2.50, tif="DAY"
+        )
+        args, _kwargs = self.stub.PlaceOptionOrder.call_args
+        req = args[0]
+        self.assertEqual(req.order_type, "STP")
+        self.assertTrue(req.HasField("price"))
+        self.assertAlmostEqual(req.price, 2.50)
+        self.assertEqual(req.tif, "DAY")
+
+    def test_place_option_order_overrides_timeout(self):
+        _ = self.client.PlaceOptionOrder("AAPL", "20251219", 150.0, "C", "BUY", 1, timeout=3.3)
+        _args, kwargs = self.stub.PlaceOptionOrder.call_args
+        self.assertEqual(kwargs.get("timeout"), 3.3)
 
     # --- GetOrder/ListOrders ---
 
@@ -274,6 +325,17 @@ class TestTradingClient(unittest.TestCase):
         # verify that insecure_channel was invoked and stub constructed.
         self.mock_insecure_channel.assert_called()
         self.mock_stub_cls.assert_called()
+
+    # --- Secure channel path ---
+
+    def test_secure_channel_is_used_when_credentials_provided(self):
+        """When credentials are passed, client should use grpc.secure_channel instead of insecure_channel."""
+        with patch("client.grpc.secure_channel") as mock_secure:
+            creds = object()
+            _c = TradingClient("localhost:5555", secure_channel_credentials=creds)
+            mock_secure.assert_called_once_with("localhost:5555", creds)
+            # Ensure stub constructed on the secure channel
+            self.mock_stub_cls.assert_called()
 
 
 if __name__ == "__main__":

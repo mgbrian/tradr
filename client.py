@@ -141,6 +141,8 @@ class TradingClient:
         """
         timeout = timeout or self.timeout
         # Only include limit_price if provided so proto 'optional' semantics behave properly.
+        # TODO ** RENAME limit_price to price to match proto **. Leaving as is to match
+        # raw API. Renaming should happen there as well.
         if limit_price is None:
             req = service_pb2.PlaceStockOrderRequest(
                 symbol=symbol,
@@ -199,7 +201,7 @@ class TradingClient:
             tif=tif,
         )
         if limit_price is not None:
-            base_kwargs['limit_price'] = float(limit_price)
+            base_kwargs['price'] = float(limit_price)
 
         req = service_pb2.PlaceOptionOrderRequest(**base_kwargs)
         resp = self._stub.PlaceOptionOrder(req, timeout=timeout)

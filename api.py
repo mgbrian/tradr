@@ -15,6 +15,8 @@ TODO:
 - Add risk hooks (pre-trade checks) once Risk Engine is built.
 - Map broker errors into normalized error shapes.
 
+- ** RENAME limit_price to price to match proto **
+
 
 ********************
 ** IMPORTANT NOTE **
