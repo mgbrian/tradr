@@ -176,7 +176,8 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         try:
             order_type = (request.order_type or 'MKT').upper()
             # For LMT/STP, limit_price must be present (validated in API as well)
-            limit_price = request.limit_price if request.HasField("limit_price") else None
+            limit_price = request.price if request.HasField("price") else None
+
             tif = (request.tif or 'DAY').upper()
 
             handle = self.api.place_stock_order(
@@ -215,7 +216,8 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         """
         try:
             order_type = (request.order_type or 'MKT').upper()
-            limit_price = request.limit_price if request.HasField("limit_price") else None
+            limit_price = request.price if request.HasField("price") else None
+
             tif = (request.tif or 'DAY').upper()
 
             handle = self.api.place_option_order(
