@@ -8048,6 +8048,38 @@
       };
     }
     /**
+     * Modify an existing order.
+     *
+     * Only fields provided are sent to the server to preserve proto `optional`
+     * semantics. Supported changes: quantity, order_type, price, tif.
+     *
+     * @param {number} orderId - Internal order id.
+     * @param {{quantity?:number, order_type?:string, price?:number, tif?:string}} [fields] - Partial update fields.
+     * @returns {Promise<{ok:boolean, status:string, message:string}>}
+     */
+    async ModifyOrder(orderId, fields = {}) {
+      const req = new messages.ModifyOrderRequest();
+      req.setOrderId(Number(orderId));
+      if (fields && fields.quantity !== void 0 && fields.quantity !== null) {
+        req.setQuantity(Number(fields.quantity));
+      }
+      if (fields && fields.order_type !== void 0 && fields.order_type !== null) {
+        req.setOrderType(String(fields.order_type));
+      }
+      if (fields && fields.price !== void 0 && fields.price !== null) {
+        req.setPrice(Number(fields.price));
+      }
+      if (fields && fields.tif !== void 0 && fields.tif !== null) {
+        req.setTif(String(fields.tif));
+      }
+      const resp = await this.client.modifyOrder(req, this.metadata);
+      return {
+        ok: !!resp.getOk(),
+        status: resp.getStatus(),
+        message: resp.getMessage()
+      };
+    }
+    /**
      * Fetch a single order by internal id.
      * @param {number} orderId
      * @returns {Promise<Object>} - Plain order object.

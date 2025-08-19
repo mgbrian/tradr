@@ -21,6 +21,8 @@ let pollTimerPortfolio = null;
 
 // Persist selected orders across re-renders
 const selectedOrderIds = new Set();
+// Keep last orders snapshot for prefill/validation during modification
+let lastOrders = [];
 
 // --- DOM helpers
 
@@ -315,73 +317,298 @@ async function cancelMany(ids, label) {
     }
 }
 
+// --- Order Modification ---
+
+/**
+ * Get an order object from the last snapshot by id.
+ * @param {number} id - Order id.
+ * @returns {Object|undefined}
+ */
+function findOrderById(id) {
+    return lastOrders.find(o => Number(o.order_id) === Number(id));
+}
+
+/**
+ * Update the enabled/disabled state of the Modify button based on current selection.
+ * Disables when no non-final selected orders exist.
+ */
+function updateModifyButtonState() {
+    const btn = $('orders-modify-button');
+    if (!btn) return;
+    // Enable if any selected id maps to a non-final order in the latest snapshot
+    const enable = Array.from(selectedOrderIds).some(id => {
+        const o = findOrderById(id);
+        return o && !isFinalStatus(o.status);
+    });
+    btn.disabled = !enable;
+}
+
+/**
+ * Show the Modify modal.
+ */
+function showModifyModal() {
+    const bd = $('modify-modal-backdrop');
+    if (bd) bd.classList.remove('hidden');
+
+    // Basic focus: move to qty field
+    const qty = $('mod-qty');
+    if (qty) qty.focus();
+}
+
+/**
+ * Hide the Modify modal and clear form inputs.
+ */
+function hideModifyModal() {
+    const bd = $('modify-modal-backdrop');
+    if (bd) bd.classList.add('hidden');
+
+    // Clear form back to neutral
+    const form = $('modify-order-form');
+    if (form) form.reset();
+
+    // Ensure price is disabled by default
+    const priceInput = $('mod-price');
+    if (priceInput) {
+        priceInput.value = '';
+        priceInput.disabled = true;
+        priceInput.placeholder = '— no change —';
+    }
+
+    // Clear target label
+    setText('modify-target-label', '—');
+}
+
+/**
+ * Open the Modify dialog, pre-filling for single-order selection when possible.
+ * In bulk mode, leaves fields as "no change" sentinels.
+ */
+function openModifyDialog() {
+    const ids = getSelectedOrderIds().filter(id => {
+        const o = findOrderById(id);
+        return o && !isFinalStatus(o.status);
+    });
+
+    if (ids.length === 0) {
+        addNotification('Select at least one modifiable order', 'warn');
+        return;
+    }
+
+    const title = $('modify-modal-title');
+    const targetLabel = $('modify-target-label');
+    const typeSel = $('mod-type');
+    const priceInput = $('mod-price');
+    const tifSel = $('mod-tif');
+    const qtyInput = $('mod-qty');
+
+    // Reset to neutral first
+    if (typeSel) typeSel.value = '';
+    if (tifSel) tifSel.value = '';
+    if (qtyInput) qtyInput.value = '';
+    if (priceInput) {
+        priceInput.value = '';
+        priceInput.disabled = true;
+        priceInput.placeholder = '— no change —';
+    }
+
+    if (ids.length === 1) {
+        const o = findOrderById(ids[0]);
+        if (o) {
+            // Header + context
+            if (title) title.textContent = `Modify Order #${o.order_id}`;
+            if (targetLabel) targetLabel.textContent = `${o.symbol} ${o.side} — current: ${o.order_type || 'MKT'} x${o.quantity}${o.limit_price ? ' @ ' + o.limit_price : ''} (${o.tif || 'DAY'})`;
+
+            // Prefill sensible defaults for single edit (user can still choose "no change")
+            // We do NOT set type/tif to force explicit edits, but we can hint via placeholders
+            if (qtyInput) qtyInput.placeholder = `— keep ${o.quantity} —`;
+
+            // If current type uses price, allow enabling price by picking a type below
+            // (To change only price while keeping type, choose that type explicitly.)
+        }
+    } else {
+        if (title) title.textContent = `Modify ${ids.length} Orders`;
+        if (targetLabel) targetLabel.textContent = `${ids.length} selected — leave fields blank to keep current values`;
+    }
+
+    // Stash ids on the form element for submit handler
+    const form = $('modify-order-form');
+    if (form) form.dataset.orderIds = JSON.stringify(ids);
+
+    showModifyModal();
+}
+
+/**
+ * Apply modifications collected from the modal to selected orders.
+ * Validates globally, then sends per-order Modify RPCs with only changed fields.
+ */
+async function applyModifyChanges() {
+    if (!grpcClient) return;
+
+    const form = $('modify-order-form');
+    if (!form) return;
+
+    let ids = [];
+    try {
+        ids = JSON.parse(form.dataset.orderIds || '[]');
+    } catch (_e) {
+        ids = [];
+    }
+    if (!ids.length) {
+        addNotification('No target orders found', 'warn');
+        return;
+    }
+
+    const qtyRaw = ($('mod-qty')?.value ?? '').trim();  // use nullish coalescing in case mod-qty doesn't exist
+    const typeVal = $('mod-type')?.value || '';
+    const tifVal = $('mod-tif')?.value || '';
+    const priceRaw = ($('mod-price')?.value ?? '').trim();
+
+    // Build global change set (undefined means "no change")
+    let qtyNum = undefined;
+    if (qtyRaw !== '') {
+        const q = parseInt(qtyRaw, 10);
+        if (!Number.isFinite(q) || q <= 0) {
+            addNotification('Quantity must be a positive integer', 'warn');
+            return;
+        }
+        qtyNum = q;
+    }
+
+    const orderType = typeVal || undefined;
+
+    let priceNum = undefined;
+    if (priceRaw !== '') {
+        const p = Number(priceRaw);
+        if (!Number.isFinite(p) || p <= 0) {
+            addNotification('Price must be a positive number', 'warn');
+            return;
+        }
+        priceNum = p;
+    }
+
+    const tif = tifVal || undefined;
+
+    // If user chose LMT/STP, require price
+    if ((orderType === 'LMT' || orderType === 'STP') && priceNum === undefined) {
+        addNotification(`${orderType} requires a valid price`, 'warn');
+        return;
+    }
+
+    // Per-order submissions
+    const results = await Promise.allSettled(ids.map(async (id) => {
+        const rec = findOrderById(id);
+        if (!rec) throw new Error('stale selection');
+
+        // Per-order guard: cannot reduce quantity below filled
+        if (qtyNum !== undefined && Number(qtyNum) < Number(rec.filled_qty || 0)) {
+            return { ok: false, skipped: true, message: `Qty < filled (${rec.filled_qty})` };
+        }
+
+        // Simple approach: only enable price when user explicitly chose LMT/STP (UI enforces)
+        const q = qtyNum;
+        const t = orderType;
+        const p = priceNum;
+        const tf = tif;
+
+        // If nothing is changing, skip
+        if (q === undefined && t === undefined && p === undefined && tf === undefined) {
+            return { ok: false, skipped: true, message: 'no changes' };
+        }
+
+        // Call ModifyOrder; undefineds preserve optional semantics in the web client
+        const resp = await grpcClient.ModifyOrder(id, q, t, p, tf);
+        return { ok: !!resp.ok, status: resp.status, message: resp.message };
+    }));
+
+    // Summarize
+    let updated = 0, skipped = 0, failed = 0;
+    results.forEach((r) => {
+        if (r.status === 'fulfilled') {
+            const v = r.value || {};
+            if (v.ok) updated += 1;
+            else if (v.skipped) skipped += 1;
+            else failed += 1;
+        } else {
+            failed += 1;
+        }
+    });
+
+    addNotification(`Modify selected: ${updated} updated, ${skipped} skipped, ${failed} failed`, failed ? 'warn' : 'info');
+
+    hideModifyModal();
+    refreshOrdersAndFills();
+}
+
 // --- Renderers
 
 /**
  * Render the Orders table.
  * @param {Array<Object>} rows - Orders array from ListOrders.
  */
-function renderOrders(rows) {
-    const tbody = bySelector('#orders-table tbody');
-    if (!tbody) return;
+ function renderOrders(rows) {
+     const tbody = bySelector('#orders-table tbody');
+     if (!tbody) return;
 
-    empty(tbody);
+     // Save snapshot for modify prefill/validation
+     lastOrders = Array.isArray(rows) ? rows.slice() : [];
 
-    // Track which ids are present to prune stale selections
-    const presentIds = new Set();
+     empty(tbody);
 
-    for (const r of rows) {
-        const id = Number(r.order_id);
-        presentIds.add(id);
+     // Track which ids are present to prune stale selections
+     const presentIds = new Set();
 
-        const final = isFinalStatus(r.status);
-        // Ensure we don't keep selections for final orders
-        if (final) selectedOrderIds.delete(id);
+     for (const r of rows) {
+         const id = Number(r.order_id);
+         presentIds.add(id);
 
-        const checked = selectedOrderIds.has(id) && !final;
+         const final = isFinalStatus(r.status);
+         if (final) selectedOrderIds.delete(id);
 
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-order-id', String(id));
-        tr.setAttribute('data-status', String(r.status || ''));
+         const checked = selectedOrderIds.has(id) && !final;
 
-        tr.innerHTML = `
-      <td>
-        <input
-          type="checkbox"
-          class="order-select"
-          data-order-id="${String(id)}"
-          ${final ? 'disabled' : ''}
-          ${checked ? 'checked' : ''} />
-      </td>
-      <td>${fmt(r.order_id)}</td>
-      <td>${fmt(r.created_at || '')}</td>
-      <td>${fmt(r.symbol)}</td>
-      <td>${fmt(r.side)}</td>
-      <td>${fmt(r.order_type || 'MKT')}</td>
-      <td>${fmt(r.quantity)}</td>
-      <td>${fmt(r.limit_price || '')}</td>
-      <td>${fmt(r.filled_qty)}</td>
-      <td>${badgeForStatus(r.status)}</td>
-      <td>${fmt(r.message || '')}</td>
-    `;
-        tbody.appendChild(tr);
-    }
+         const tr = document.createElement('tr');
+         tr.setAttribute('data-order-id', String(id));
+         tr.setAttribute('data-status', String(r.status || ''));
 
-    // Prune selections for orders that disappeared from the table
-    for (const selId of Array.from(selectedOrderIds)) {
-        if (!presentIds.has(selId)) selectedOrderIds.delete(selId);
-    }
+         tr.innerHTML = `
+       <td>
+         <input
+           type="checkbox"
+           class="order-select"
+           data-order-id="${String(id)}"
+           ${final ? 'disabled' : ''}
+           ${checked ? 'checked' : ''} />
+       </td>
+       <td>${fmt(r.order_id)}</td>
+       <td>${fmt(r.created_at || '')}</td>
+       <td>${fmt(r.symbol)}</td>
+       <td>${fmt(r.side)}</td>
+       <td>${fmt(r.order_type || 'MKT')}</td>
+       <td>${fmt(r.quantity)}</td>
+       <td>${fmt(r.limit_price || '')}</td>
+       <td>${fmt(r.filled_qty)}</td>
+       <td>${badgeForStatus(r.status)}</td>
+       <td>${fmt(r.message || '')}</td>
+     `;
+         tbody.appendChild(tr);
+     }
 
-    // Keep header "select all" state sane after re-render
-    const selectAll = document.querySelector('#orders-table thead input[type=checkbox]');
-    if (selectAll) {
-        const boxes = tbody.querySelectorAll('input.order-select:not([disabled])');
-        const allSelected = boxes.length > 0 && Array.from(boxes).every(b => b.checked);
-        selectAll.checked = allSelected;
-        // tristate isn't supported natively; could set selectAll.indeterminate when some selected
-        selectAll.indeterminate = !allSelected && Array.from(boxes).some(b => b.checked);
-    }
-}
+     // Prune selections for orders that disappeared from the table
+     for (const selId of Array.from(selectedOrderIds)) {
+         if (!presentIds.has(selId)) selectedOrderIds.delete(selId);
+     }
+
+     // Keep header "select all" state sane after re-render
+     const selectAll = document.querySelector('#orders-table thead input[type=checkbox]');
+     if (selectAll) {
+         const boxes = tbody.querySelectorAll('input.order-select:not([disabled])');
+         const allSelected = boxes.length > 0 && Array.from(boxes).every(b => b.checked);
+         selectAll.checked = allSelected;
+         selectAll.indeterminate = !allSelected && Array.from(boxes).some(b => b.checked);
+     }
+
+     // Also keep Modify button state coherent
+     updateModifyButtonState();
+ }
 
 /**
  * Render the Fills table.
@@ -485,97 +712,142 @@ function stopPolling() {
 /**
  * Wire DOM event listeners for interactive controls.
  */
-function wireEvents() {
-    const reconnectBtn = $('server-connect-button');
-    if (reconnectBtn) {
-        reconnectBtn.addEventListener('click', () => {
-            const ep = prompt('Enter gRPC-web endpoint', grpcEndpoint) || grpcEndpoint;
-            initGrpc(ep);
-        });
-    }
+ function wireEvents() {
+     const reconnectBtn = $('server-connect-button');
+     if (reconnectBtn) {
+         reconnectBtn.addEventListener('click', () => {
+             const ep = prompt('Enter gRPC-web endpoint', grpcEndpoint) || grpcEndpoint;
+             initGrpc(ep);
+         });
+     }
 
-    const placeBtn = $('place-order-button');
-    if (placeBtn) placeBtn.addEventListener('click', placeManualOrder);
+     const placeBtn = $('place-order-button');
+     if (placeBtn) placeBtn.addEventListener('click', placeManualOrder);
 
-    // Enable/disable price field depending on type selection.
-    const typeSel = $('order-type');
-    const priceInput = $('order-limit-price');
-    if (typeSel && priceInput) {
-        const togglePrice = () => {
-            const t = typeSel.value;
-            const wantsPrice = (t === 'LMT' || t === 'STP');
-            priceInput.disabled = !wantsPrice;
-            if (!wantsPrice) priceInput.value = '';
-            priceInput.placeholder = wantsPrice ? 'e.g. 123.45' : '—';
-        };
-        typeSel.addEventListener('change', togglePrice);
-        togglePrice();
-    }
+     // Enable/disable price field depending on type selection (manual order).
+     const typeSel = $('order-type');
+     const priceInput = $('order-limit-price');
+     if (typeSel && priceInput) {
+         const togglePrice = () => {
+             const t = typeSel.value;
+             const wantsPrice = (t === 'LMT' || t === 'STP');
+             priceInput.disabled = !wantsPrice;
+             if (!wantsPrice) priceInput.value = '';
+             priceInput.placeholder = wantsPrice ? 'e.g. 123.45' : '—';
+         };
+         typeSel.addEventListener('change', togglePrice);
+         togglePrice();
+     }
 
-    // --- Cancellation buttons
-    const cancelSel = $('orders-cancel-selected-button');
-    if (cancelSel) cancelSel.addEventListener('click', cancelSelectedOrders);
+     // --- Cancellation buttons
+     const cancelSel = $('orders-cancel-selected-button');
+     if (cancelSel) cancelSel.addEventListener('click', cancelSelectedOrders);
 
-    const cancelAll = $('orders-cancel-all-button');
-    if (cancelAll) cancelAll.addEventListener('click', cancelAllOrders);
+     const cancelAll = $('orders-cancel-all-button');
+     if (cancelAll) cancelAll.addEventListener('click', cancelAllOrders);
 
-    const modifyBtn = $('orders-modify-button');
-    if (modifyBtn) modifyBtn.addEventListener('click', () =>
-        addNotification('Modify: not yet implemented', 'warn')
-    );
+     // Modify button -> open dialog
+     const modifyBtn = $('orders-modify-button');
+     if (modifyBtn) {
+         modifyBtn.addEventListener('click', openModifyDialog);
+         // initial state
+         updateModifyButtonState();
+     }
 
-    const algoStop = $('algo-stop-button');
-    if (algoStop)
-        algoStop.addEventListener('click', () => {
-            addNotification('Algo stop requested (stub)', 'warn');
-            const badge = $('algo-state-badge');
-            if (badge) {
-                badge.textContent = 'STOPPING';
-                badge.classList.remove('badge--success');
-            }
-        });
+     const algoStop = $('algo-stop-button');
+     if (algoStop)
+         algoStop.addEventListener('click', () => {
+             addNotification('Algo stop requested (stub)', 'warn');
+             const badge = $('algo-state-badge');
+             if (badge) {
+                 badge.textContent = 'STOPPING';
+                 badge.classList.remove('badge--success');
+             }
+         });
 
-    // Select-all checkbox for orders table
-    const selectAll = document.querySelector('#orders-table thead input[type=checkbox]');
-    if (selectAll) {
-        selectAll.addEventListener('change', () => {
-            const tbody = document.querySelector('#orders-table tbody');
-            const boxes = document.querySelectorAll('#orders-table tbody input.order-select[type=checkbox]:not([disabled])');
-            boxes.forEach(b => {
-                b.checked = !!selectAll.checked;
-                const id = Number(b.dataset.orderId);
-                if (!Number.isFinite(id)) return;
-                if (selectAll.checked) selectedOrderIds.add(id);
-                else selectedOrderIds.delete(id);
-            });
-            // keep header state coherent if there are no boxes
-            const any = boxes.length > 0;
-            selectAll.indeterminate = false;
-            selectAll.checked = any && !!selectAll.checked;
-        });
-    }
+     // Select-all checkbox for orders table
+     const selectAll = document.querySelector('#orders-table thead input[type=checkbox]');
+     if (selectAll) {
+         selectAll.addEventListener('change', () => {
+             const tbody = document.querySelector('#orders-table tbody');
+             const boxes = document.querySelectorAll('#orders-table tbody input.order-select[type=checkbox]:not([disabled])');
+             boxes.forEach(b => {
+                 b.checked = !!selectAll.checked;
+                 const id = Number(b.dataset.orderId);
+                 if (!Number.isFinite(id)) return;
+                 if (selectAll.checked) selectedOrderIds.add(id);
+                 else selectedOrderIds.delete(id);
+             });
+             const any = boxes.length > 0;
+             selectAll.indeterminate = false;
+             selectAll.checked = any && !!selectAll.checked;
+             updateModifyButtonState();
+         });
+     }
 
-    // Row checkbox changes -> keep selection set + header in sync
-    const tbody = document.querySelector('#orders-table tbody');
-    if (tbody) {
-        tbody.addEventListener('change', (e) => {
-            const cb = e.target;
-            if (!cb.matches('input.order-select[type=checkbox]')) return;
-            const id = Number(cb.dataset.orderId);
-            if (!Number.isFinite(id)) return;
-            if (cb.checked) selectedOrderIds.add(id);
-            else selectedOrderIds.delete(id);
+     // Row checkbox changes -> keep selection set + header in sync + modify button state
+     const tbody = document.querySelector('#orders-table tbody');
+     if (tbody) {
+         tbody.addEventListener('change', (e) => {
+             const cb = e.target;
+             if (!cb.matches('input.order-select[type=checkbox]')) return;
+             const id = Number(cb.dataset.orderId);
+             if (!Number.isFinite(id)) return;
+             if (cb.checked) selectedOrderIds.add(id);
+             else selectedOrderIds.delete(id);
 
-            const head = document.querySelector('#orders-table thead input[type=checkbox]');
-            if (head) {
-                const boxes = tbody.querySelectorAll('input.order-select:not([disabled])');
-                const allSelected = boxes.length > 0 && Array.from(boxes).every(b => b.checked);
-                head.checked = allSelected;
-                head.indeterminate = !allSelected && Array.from(boxes).some(b => b.checked);
-            }
-        });
-    }
-}
+             const head = document.querySelector('#orders-table thead input[type=checkbox]');
+             if (head) {
+                 const boxes = tbody.querySelectorAll('input.order-select:not([disabled])');
+                 const allSelected = boxes.length > 0 && Array.from(boxes).every(b => b.checked);
+                 head.checked = allSelected;
+                 head.indeterminate = !allSelected && Array.from(boxes).some(b => b.checked);
+             }
+
+             updateModifyButtonState();
+         });
+     }
+
+     // --- Modify modal wiring ---
+
+     // Type change toggles price input in the Modify dialog
+     const modType = $('mod-type');
+     const modPrice = $('mod-price');
+     if (modType && modPrice) {
+         const toggleModPrice = () => {
+             const t = modType.value;
+             const wants = (t === 'LMT' || t === 'STP');
+             modPrice.disabled = !wants;
+             if (!wants) {
+                 modPrice.value = '';
+                 modPrice.placeholder = '— no change —';
+             } else {
+                 modPrice.placeholder = 'e.g. 123.45';
+             }
+         };
+         modType.addEventListener('change', toggleModPrice);
+         toggleModPrice();
+     }
+
+     const modApply = $('modify-apply-button');
+     if (modApply) modApply.addEventListener('click', applyModifyChanges);
+
+     const modCancel = $('modify-cancel-button');
+     if (modCancel) modCancel.addEventListener('click', hideModifyModal);
+
+     // Close on backdrop click (but not when clicking inside the modal)
+     const backdrop = $('modify-modal-backdrop');
+     if (backdrop) {
+         backdrop.addEventListener('click', (e) => {
+             if (e.target === backdrop) hideModifyModal();
+         });
+     }
+
+     // Basic ESC to close
+     document.addEventListener('keydown', (e) => {
+         if (e.key === 'Escape') hideModifyModal();
+     });
+ }
 
 document.addEventListener('DOMContentLoaded', () => {
     wireEvents();
