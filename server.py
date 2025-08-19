@@ -268,6 +268,42 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
         except Exception as e:
             _abort_for_exception(context, e)
 
+    # --- Modification ---
+
+    def ModifyOrder(self, request, context):
+        """Modify an existing order by internal id.
+
+        Args:
+            request: service_pb2.ModifyOrderRequest - order_id and optional fields.
+
+        Returns:
+            service_pb2.ModifyOrderResponse - ok/status/message.
+        """
+        try:
+            order_id = int(request.order_id)
+            kwargs = {}
+
+            if request.HasField("quantity"):
+                kwargs["quantity"] = int(request.quantity)
+            if request.HasField("order_type"):
+                kwargs["order_type"] = (request.order_type or '').upper()
+            if request.HasField("price"):
+                kwargs["limit_price"] = float(request.price)
+            if request.HasField("tif"):
+                kwargs["tif"] = (request.tif or '').upper()
+
+            ok = self.api.modify_order(order_id, **kwargs)
+            rec = self.api.get_order(order_id) or {}
+
+            return service_pb2.ModifyOrderResponse(
+                ok=bool(ok),
+                status=str(rec.get('status') or ('MODIFY_REQUESTED' if ok else '')),
+                message=str(rec.get('error') or rec.get('message') or '')
+            )
+
+        except Exception as e:
+            _abort_for_exception(context, e)
+
     # --- Orders / Fills ---
 
     def GetOrder(self, request, context):
@@ -371,7 +407,7 @@ def serve(address=DEFAULT_SERVER_ADDRESS, *, db=None, ib=None, api=None, positio
         api: TradingAPI (optional) - API layer object for order placement and queries.
         position_tracker: PositionTracker (optional) - Tracker for positions/account values.
         execution_tracker: ExecutionTracker (optional) - Tracker for executions/fills.
-        auto_connect: bool - If True and an IBSession is created internally, connect immediately.
+        auto_connect: bool - If True, start trackers that are not already started.
         start_trackers: bool - If True, start trackers that are not already started.
         wait: bool - If True, block on server.wait_for_termination(); otherwise return immediately.
 

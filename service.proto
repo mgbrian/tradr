@@ -8,6 +8,7 @@ service TradingService {
   rpc PlaceStockOrder(PlaceStockOrderRequest) returns (PlaceOrderResponse);
   rpc PlaceOptionOrder(PlaceOptionOrderRequest) returns (PlaceOrderResponse);
   rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+  rpc ModifyOrder(ModifyOrderRequest) returns (ModifyOrderResponse);
 
   rpc GetOrder(GetOrderRequest) returns (OrderRecord);
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
@@ -57,6 +58,22 @@ message CancelOrderResponse {
   bool ok = 1;  // true if a cancel request was submitted to the broker
   string status = 2;  // current/updated order status (e.g. "CANCEL_REQUESTED", "FILLED", "CANCELLED")
   string message = 3; // optional error/info (from DB error/message fields)
+}
+
+message ModifyOrderRequest {
+  int64 order_id = 1;
+
+  // All fields below are optional. When absent, server should keep existing values.
+  optional int32 quantity = 2;  // new quantity
+  optional string order_type = 3;  // "MKT" | "LMT" | "STP"
+  optional double price = 4;  // limit/stop price when order_type is LMT/STP
+  optional string tif = 5;  // "DAY" | "GTC" | etc.
+}
+
+message ModifyOrderResponse {
+  bool ok = 1; // true if a modify request was submitted to the broker
+  string status = 2; // e.g. "MODIFY_REQUESTED", or current status
+  string message = 3; // optional error/info
 }
 
 message GetOrderRequest {

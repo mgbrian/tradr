@@ -212,7 +212,7 @@ class TestTradingService(unittest.TestCase):
         self.assertEqual(resp.message, "")
 
     def test_cancel_order_false_uses_db_status(self):
-        """If API reports False (e.g., already FILLED), response.ok=False and status comes from DB."""
+        """If API reports False (e.g. already FILLED), response.ok=False and status comes from DB."""
         self.mock_api.cancel_order.return_value = False
         self.mock_api.get_order.return_value = {
             'order_id': 1,
@@ -253,6 +253,107 @@ class TestTradingService(unittest.TestCase):
 
         self.assertEqual(cm.exception.code(), grpc.StatusCode.NOT_FOUND)
         self.assertIn("missing", cm.exception.details())
+
+    # --- ModifyOrder ---
+
+    def test_modify_order_full_overrides_forwarding_and_proto(self):
+        """ModifyOrder: veneer forwards optional fields (uppercase mapping) and returns proto."""
+        self.mock_api.modify_order.return_value = True
+        # Status/message come from DB snapshot after the call
+        self.mock_api.get_order.return_value = {
+            'order_id': 1,
+            'status': 'ACKED',
+            'message': ''
+        }
+
+        # Use lowercase inputs to verify server uppercases order_type/tif
+        req = service_pb2.ModifyOrderRequest(
+            order_id=1,
+            quantity=20,
+            order_type="lmt",
+            price=123.45,
+            tif="gtc"
+        )
+        resp = self.stub.ModifyOrder(req)
+
+        args, kwargs = self.mock_api.modify_order.call_args
+        self.assertEqual(args[0], 1)
+        self.assertEqual(kwargs.get('quantity'), 20)
+        self.assertEqual(kwargs.get('order_type'), 'LMT')
+        # Server must map price to limit_price (in underlying API) and uppercase order_type/tif
+        self.assertEqual(kwargs.get('limit_price'), 123.45)
+        self.assertEqual(kwargs.get('tif'), 'GTC')
+
+        self.assertTrue(resp.ok)
+        self.assertEqual(resp.status, "ACKED")
+        self.assertEqual(resp.message, "")
+
+    def test_modify_order_only_id_sends_no_overrides(self):
+        """If no fields set, server should call API with just order_id and use DB status."""
+        self.mock_api.modify_order.return_value = True
+        self.mock_api.get_order.return_value = {'order_id': 2, 'status': 'MODIFY_REQUESTED', 'message': ''}
+
+        req = service_pb2.ModifyOrderRequest(order_id=2)
+        resp = self.stub.ModifyOrder(req)
+
+        args, kwargs = self.mock_api.modify_order.call_args
+        self.assertEqual(args[0], 2)
+        self.assertEqual(kwargs, {})  # No overrides forwarded
+
+        self.assertTrue(resp.ok)
+        self.assertEqual(resp.status, "MODIFY_REQUESTED")
+
+    def test_modify_order_false_uses_db_status(self):
+        """If API returns False (e.g. already FILLED), response.ok=False and status comes from DB."""
+        self.mock_api.modify_order.return_value = False
+        self.mock_api.get_order.return_value = {'order_id': 3, 'status': 'FILLED', 'message': 'already filled'}
+
+        req = service_pb2.ModifyOrderRequest(order_id=3, quantity=1)
+        resp = self.stub.ModifyOrder(req)
+
+        self.mock_api.modify_order.assert_called_once()
+        self.assertFalse(resp.ok)
+        self.assertEqual(resp.status, "FILLED")
+        self.assertEqual(resp.message, "already filled")
+
+    def test_modify_order_validation_error_maps_to_invalid_argument(self):
+        """ValueError from API maps to INVALID_ARGUMENT."""
+        self.mock_api.modify_order.side_effect = ValueError("bad quantity")
+
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        with self.assertRaises(grpc.RpcError) as cm:
+            self.stub.ModifyOrder(service_pb2.ModifyOrderRequest(order_id=5, quantity=-1))
+
+        self.assertEqual(cm.exception.code(), grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertIn("bad quantity", cm.exception.details())
+
+    def test_modify_order_missing_maps_to_not_found(self):
+        """KeyError from API maps to NOT_FOUND."""
+        self.mock_api.modify_order.side_effect = KeyError("missing")
+
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        with self.assertRaises(grpc.RpcError) as cm:
+            self.stub.ModifyOrder(service_pb2.ModifyOrderRequest(order_id=404))
+
+        self.assertEqual(cm.exception.code(), grpc.StatusCode.NOT_FOUND)
+        self.assertIn("missing", cm.exception.details())
+
+    def test_modify_order_timeout_maps_to_deadline_exceeded(self):
+        """TimeoutError from API maps to DEADLINE_EXCEEDED."""
+        self.mock_api.modify_order.side_effect = TimeoutError("took too long")
+
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(logging.disable, logging.NOTSET)
+
+        with self.assertRaises(grpc.RpcError) as cm:
+            self.stub.ModifyOrder(service_pb2.ModifyOrderRequest(order_id=6, quantity=1))
+
+        self.assertEqual(cm.exception.code(), grpc.StatusCode.DEADLINE_EXCEEDED)
+        self.assertIn("took too long", cm.exception.details())
 
     # --- Error mapping (context.abort) ---
 

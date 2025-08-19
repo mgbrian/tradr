@@ -4874,6 +4874,8 @@
       goog.exportSymbol("proto.tradr.ListFillsResponse", null, global2);
       goog.exportSymbol("proto.tradr.ListOrdersRequest", null, global2);
       goog.exportSymbol("proto.tradr.ListOrdersResponse", null, global2);
+      goog.exportSymbol("proto.tradr.ModifyOrderRequest", null, global2);
+      goog.exportSymbol("proto.tradr.ModifyOrderResponse", null, global2);
       goog.exportSymbol("proto.tradr.OrderRecord", null, global2);
       goog.exportSymbol("proto.tradr.PlaceOptionOrderRequest", null, global2);
       goog.exportSymbol("proto.tradr.PlaceOrderResponse", null, global2);
@@ -4913,6 +4915,20 @@
       goog.inherits(proto.tradr.CancelOrderResponse, jspb.Message);
       if (goog.DEBUG && !COMPILED) {
         proto.tradr.CancelOrderResponse.displayName = "proto.tradr.CancelOrderResponse";
+      }
+      proto.tradr.ModifyOrderRequest = function(opt_data) {
+        jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+      };
+      goog.inherits(proto.tradr.ModifyOrderRequest, jspb.Message);
+      if (goog.DEBUG && !COMPILED) {
+        proto.tradr.ModifyOrderRequest.displayName = "proto.tradr.ModifyOrderRequest";
+      }
+      proto.tradr.ModifyOrderResponse = function(opt_data) {
+        jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+      };
+      goog.inherits(proto.tradr.ModifyOrderResponse, jspb.Message);
+      if (goog.DEBUG && !COMPILED) {
+        proto.tradr.ModifyOrderResponse.displayName = "proto.tradr.ModifyOrderResponse";
       }
       proto.tradr.GetOrderRequest = function(opt_data) {
         jspb.Message.initialize(this, opt_data, 0, -1, null, null);
@@ -5797,6 +5813,306 @@
         );
       };
       proto.tradr.CancelOrderResponse.prototype.setMessage = function(value) {
+        return jspb.Message.setProto3StringField(this, 3, value);
+      };
+      if (jspb.Message.GENERATE_TO_OBJECT) {
+        proto.tradr.ModifyOrderRequest.prototype.toObject = function(opt_includeInstance) {
+          return proto.tradr.ModifyOrderRequest.toObject(opt_includeInstance, this);
+        };
+        proto.tradr.ModifyOrderRequest.toObject = function(includeInstance, msg) {
+          var f, obj = {
+            orderId: jspb.Message.getFieldWithDefault(msg, 1, 0),
+            quantity: (f = jspb.Message.getField(msg, 2)) == null ? void 0 : f,
+            orderType: (f = jspb.Message.getField(msg, 3)) == null ? void 0 : f,
+            price: (f = jspb.Message.getOptionalFloatingPointField(msg, 4)) == null ? void 0 : f,
+            tif: (f = jspb.Message.getField(msg, 5)) == null ? void 0 : f
+          };
+          if (includeInstance) {
+            obj.$jspbMessageInstance = msg;
+          }
+          return obj;
+        };
+      }
+      proto.tradr.ModifyOrderRequest.deserializeBinary = function(bytes) {
+        var reader = new jspb.BinaryReader(bytes);
+        var msg = new proto.tradr.ModifyOrderRequest();
+        return proto.tradr.ModifyOrderRequest.deserializeBinaryFromReader(msg, reader);
+      };
+      proto.tradr.ModifyOrderRequest.deserializeBinaryFromReader = function(msg, reader) {
+        while (reader.nextField()) {
+          if (reader.isEndGroup()) {
+            break;
+          }
+          var field = reader.getFieldNumber();
+          switch (field) {
+            case 1:
+              var value = (
+                /** @type {number} */
+                reader.readInt64()
+              );
+              msg.setOrderId(value);
+              break;
+            case 2:
+              var value = (
+                /** @type {number} */
+                reader.readInt32()
+              );
+              msg.setQuantity(value);
+              break;
+            case 3:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setOrderType(value);
+              break;
+            case 4:
+              var value = (
+                /** @type {number} */
+                reader.readDouble()
+              );
+              msg.setPrice(value);
+              break;
+            case 5:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setTif(value);
+              break;
+            default:
+              reader.skipField();
+              break;
+          }
+        }
+        return msg;
+      };
+      proto.tradr.ModifyOrderRequest.prototype.serializeBinary = function() {
+        var writer = new jspb.BinaryWriter();
+        proto.tradr.ModifyOrderRequest.serializeBinaryToWriter(this, writer);
+        return writer.getResultBuffer();
+      };
+      proto.tradr.ModifyOrderRequest.serializeBinaryToWriter = function(message, writer) {
+        var f = void 0;
+        f = message.getOrderId();
+        if (f !== 0) {
+          writer.writeInt64(
+            1,
+            f
+          );
+        }
+        f = /** @type {number} */
+        jspb.Message.getField(message, 2);
+        if (f != null) {
+          writer.writeInt32(
+            2,
+            f
+          );
+        }
+        f = /** @type {string} */
+        jspb.Message.getField(message, 3);
+        if (f != null) {
+          writer.writeString(
+            3,
+            f
+          );
+        }
+        f = /** @type {number} */
+        jspb.Message.getField(message, 4);
+        if (f != null) {
+          writer.writeDouble(
+            4,
+            f
+          );
+        }
+        f = /** @type {string} */
+        jspb.Message.getField(message, 5);
+        if (f != null) {
+          writer.writeString(
+            5,
+            f
+          );
+        }
+      };
+      proto.tradr.ModifyOrderRequest.prototype.getOrderId = function() {
+        return (
+          /** @type {number} */
+          jspb.Message.getFieldWithDefault(this, 1, 0)
+        );
+      };
+      proto.tradr.ModifyOrderRequest.prototype.setOrderId = function(value) {
+        return jspb.Message.setProto3IntField(this, 1, value);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.getQuantity = function() {
+        return (
+          /** @type {number} */
+          jspb.Message.getFieldWithDefault(this, 2, 0)
+        );
+      };
+      proto.tradr.ModifyOrderRequest.prototype.setQuantity = function(value) {
+        return jspb.Message.setField(this, 2, value);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.clearQuantity = function() {
+        return jspb.Message.setField(this, 2, void 0);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.hasQuantity = function() {
+        return jspb.Message.getField(this, 2) != null;
+      };
+      proto.tradr.ModifyOrderRequest.prototype.getOrderType = function() {
+        return (
+          /** @type {string} */
+          jspb.Message.getFieldWithDefault(this, 3, "")
+        );
+      };
+      proto.tradr.ModifyOrderRequest.prototype.setOrderType = function(value) {
+        return jspb.Message.setField(this, 3, value);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.clearOrderType = function() {
+        return jspb.Message.setField(this, 3, void 0);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.hasOrderType = function() {
+        return jspb.Message.getField(this, 3) != null;
+      };
+      proto.tradr.ModifyOrderRequest.prototype.getPrice = function() {
+        return (
+          /** @type {number} */
+          jspb.Message.getFloatingPointFieldWithDefault(this, 4, 0)
+        );
+      };
+      proto.tradr.ModifyOrderRequest.prototype.setPrice = function(value) {
+        return jspb.Message.setField(this, 4, value);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.clearPrice = function() {
+        return jspb.Message.setField(this, 4, void 0);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.hasPrice = function() {
+        return jspb.Message.getField(this, 4) != null;
+      };
+      proto.tradr.ModifyOrderRequest.prototype.getTif = function() {
+        return (
+          /** @type {string} */
+          jspb.Message.getFieldWithDefault(this, 5, "")
+        );
+      };
+      proto.tradr.ModifyOrderRequest.prototype.setTif = function(value) {
+        return jspb.Message.setField(this, 5, value);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.clearTif = function() {
+        return jspb.Message.setField(this, 5, void 0);
+      };
+      proto.tradr.ModifyOrderRequest.prototype.hasTif = function() {
+        return jspb.Message.getField(this, 5) != null;
+      };
+      if (jspb.Message.GENERATE_TO_OBJECT) {
+        proto.tradr.ModifyOrderResponse.prototype.toObject = function(opt_includeInstance) {
+          return proto.tradr.ModifyOrderResponse.toObject(opt_includeInstance, this);
+        };
+        proto.tradr.ModifyOrderResponse.toObject = function(includeInstance, msg) {
+          var f, obj = {
+            ok: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+            status: jspb.Message.getFieldWithDefault(msg, 2, ""),
+            message: jspb.Message.getFieldWithDefault(msg, 3, "")
+          };
+          if (includeInstance) {
+            obj.$jspbMessageInstance = msg;
+          }
+          return obj;
+        };
+      }
+      proto.tradr.ModifyOrderResponse.deserializeBinary = function(bytes) {
+        var reader = new jspb.BinaryReader(bytes);
+        var msg = new proto.tradr.ModifyOrderResponse();
+        return proto.tradr.ModifyOrderResponse.deserializeBinaryFromReader(msg, reader);
+      };
+      proto.tradr.ModifyOrderResponse.deserializeBinaryFromReader = function(msg, reader) {
+        while (reader.nextField()) {
+          if (reader.isEndGroup()) {
+            break;
+          }
+          var field = reader.getFieldNumber();
+          switch (field) {
+            case 1:
+              var value = (
+                /** @type {boolean} */
+                reader.readBool()
+              );
+              msg.setOk(value);
+              break;
+            case 2:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setStatus(value);
+              break;
+            case 3:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setMessage(value);
+              break;
+            default:
+              reader.skipField();
+              break;
+          }
+        }
+        return msg;
+      };
+      proto.tradr.ModifyOrderResponse.prototype.serializeBinary = function() {
+        var writer = new jspb.BinaryWriter();
+        proto.tradr.ModifyOrderResponse.serializeBinaryToWriter(this, writer);
+        return writer.getResultBuffer();
+      };
+      proto.tradr.ModifyOrderResponse.serializeBinaryToWriter = function(message, writer) {
+        var f = void 0;
+        f = message.getOk();
+        if (f) {
+          writer.writeBool(
+            1,
+            f
+          );
+        }
+        f = message.getStatus();
+        if (f.length > 0) {
+          writer.writeString(
+            2,
+            f
+          );
+        }
+        f = message.getMessage();
+        if (f.length > 0) {
+          writer.writeString(
+            3,
+            f
+          );
+        }
+      };
+      proto.tradr.ModifyOrderResponse.prototype.getOk = function() {
+        return (
+          /** @type {boolean} */
+          jspb.Message.getBooleanFieldWithDefault(this, 1, false)
+        );
+      };
+      proto.tradr.ModifyOrderResponse.prototype.setOk = function(value) {
+        return jspb.Message.setProto3BooleanField(this, 1, value);
+      };
+      proto.tradr.ModifyOrderResponse.prototype.getStatus = function() {
+        return (
+          /** @type {string} */
+          jspb.Message.getFieldWithDefault(this, 2, "")
+        );
+      };
+      proto.tradr.ModifyOrderResponse.prototype.setStatus = function(value) {
+        return jspb.Message.setProto3StringField(this, 2, value);
+      };
+      proto.tradr.ModifyOrderResponse.prototype.getMessage = function() {
+        return (
+          /** @type {string} */
+          jspb.Message.getFieldWithDefault(this, 3, "")
+        );
+      };
+      proto.tradr.ModifyOrderResponse.prototype.setMessage = function(value) {
         return jspb.Message.setProto3StringField(this, 3, value);
       };
       if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -7383,6 +7699,37 @@
           request,
           metadata || {},
           methodDescriptor_TradingService_CancelOrder
+        );
+      };
+      var methodDescriptor_TradingService_ModifyOrder = new grpc.web.MethodDescriptor(
+        "/tradr.TradingService/ModifyOrder",
+        grpc.web.MethodType.UNARY,
+        proto2.tradr.ModifyOrderRequest,
+        proto2.tradr.ModifyOrderResponse,
+        /**
+         * @param {!proto.tradr.ModifyOrderRequest} request
+         * @return {!Uint8Array}
+         */
+        function(request) {
+          return request.serializeBinary();
+        },
+        proto2.tradr.ModifyOrderResponse.deserializeBinary
+      );
+      proto2.tradr.TradingServiceClient.prototype.modifyOrder = function(request, metadata, callback) {
+        return this.client_.rpcCall(
+          this.hostname_ + "/tradr.TradingService/ModifyOrder",
+          request,
+          metadata || {},
+          methodDescriptor_TradingService_ModifyOrder,
+          callback
+        );
+      };
+      proto2.tradr.TradingServicePromiseClient.prototype.modifyOrder = function(request, metadata) {
+        return this.client_.unaryCall(
+          this.hostname_ + "/tradr.TradingService/ModifyOrder",
+          request,
+          metadata || {},
+          methodDescriptor_TradingService_ModifyOrder
         );
       };
       var methodDescriptor_TradingService_GetOrder = new grpc.web.MethodDescriptor(

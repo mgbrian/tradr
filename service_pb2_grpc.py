@@ -51,6 +51,11 @@ class TradingServiceStub(object):
                 request_serializer=service__pb2.CancelOrderRequest.SerializeToString,
                 response_deserializer=service__pb2.CancelOrderResponse.FromString,
                 _registered_method=True)
+        self.ModifyOrder = channel.unary_unary(
+                '/tradr.TradingService/ModifyOrder',
+                request_serializer=service__pb2.ModifyOrderRequest.SerializeToString,
+                response_deserializer=service__pb2.ModifyOrderResponse.FromString,
+                _registered_method=True)
         self.GetOrder = channel.unary_unary(
                 '/tradr.TradingService/GetOrder',
                 request_serializer=service__pb2.GetOrderRequest.SerializeToString,
@@ -96,6 +101,12 @@ class TradingServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def CancelOrder(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ModifyOrder(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -148,6 +159,11 @@ def add_TradingServiceServicer_to_server(servicer, server):
                     servicer.CancelOrder,
                     request_deserializer=service__pb2.CancelOrderRequest.FromString,
                     response_serializer=service__pb2.CancelOrderResponse.SerializeToString,
+            ),
+            'ModifyOrder': grpc.unary_unary_rpc_method_handler(
+                    servicer.ModifyOrder,
+                    request_deserializer=service__pb2.ModifyOrderRequest.FromString,
+                    response_serializer=service__pb2.ModifyOrderResponse.SerializeToString,
             ),
             'GetOrder': grpc.unary_unary_rpc_method_handler(
                     servicer.GetOrder,
@@ -258,6 +274,33 @@ class TradingService(object):
             '/tradr.TradingService/CancelOrder',
             service__pb2.CancelOrderRequest.SerializeToString,
             service__pb2.CancelOrderResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ModifyOrder(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/tradr.TradingService/ModifyOrder',
+            service__pb2.ModifyOrderRequest.SerializeToString,
+            service__pb2.ModifyOrderResponse.FromString,
             options,
             channel_credentials,
             insecure,

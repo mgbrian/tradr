@@ -72,6 +72,30 @@ class CancelOrderResponse(_message.Message):
     message: str
     def __init__(self, ok: bool = ..., status: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
 
+class ModifyOrderRequest(_message.Message):
+    __slots__ = ("order_id", "quantity", "order_type", "price", "tif")
+    ORDER_ID_FIELD_NUMBER: _ClassVar[int]
+    QUANTITY_FIELD_NUMBER: _ClassVar[int]
+    ORDER_TYPE_FIELD_NUMBER: _ClassVar[int]
+    PRICE_FIELD_NUMBER: _ClassVar[int]
+    TIF_FIELD_NUMBER: _ClassVar[int]
+    order_id: int
+    quantity: int
+    order_type: str
+    price: float
+    tif: str
+    def __init__(self, order_id: _Optional[int] = ..., quantity: _Optional[int] = ..., order_type: _Optional[str] = ..., price: _Optional[float] = ..., tif: _Optional[str] = ...) -> None: ...
+
+class ModifyOrderResponse(_message.Message):
+    __slots__ = ("ok", "status", "message")
+    OK_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    ok: bool
+    status: str
+    message: str
+    def __init__(self, ok: bool = ..., status: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
+
 class GetOrderRequest(_message.Message):
     __slots__ = ("order_id",)
     ORDER_ID_FIELD_NUMBER: _ClassVar[int]
