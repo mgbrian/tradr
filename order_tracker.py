@@ -114,7 +114,8 @@ class OrderTracker:
 
         Args:
             ib: IB - Connected client with events:
-                - openOrderEvent(contract, order, orderState)
+                - openOrderEvent(contract, order, orderState) *or*
+                  openOrderEvent(orderId, contract, order, orderState)
                 - orderStatusEvent(orderId, status, filled, remaining, avgFillPrice, etc)
             db: InMemoryDB-like object with add_order(), update_order(), list_orders() methods.
         """
@@ -167,16 +168,51 @@ class OrderTracker:
 
     # --- Event handlers ---
 
-    def _on_open_order(self, contract, order, order_state):
-        """Handle openOrderEvent."""
+    def _on_open_order(self, *args):
+        """Handle openOrderEvent (supports 3-arg and 4-arg variants).
+
+        Accepts either:
+            (contract, order, order_state)
+        or:
+            (order_id, contract, order, order_state)
+
+        We adopt unknown orders immediately when we have usable metadata; otherwise
+        we still create a minimal record keyed by broker_order_id so future status
+        updates can enrich it.
+        """
         try:
+            # Normalize arguments
+            if len(args) == 4:
+                raw_broker_id, contract, order, order_state = args
+                try:
+                    broker_id = int(raw_broker_id or 0)
+                except Exception:
+                    broker_id = 0
+
+            elif len(args) == 3:
+                contract, order, order_state = args
+                # Fall back to order.orderId
+                try:
+                    broker_id = int(getattr(order, "orderId", 0) or 0)
+                except Exception:
+                    broker_id = 0
+
+            else:
+                logger.debug("openOrderEvent received unexpected arity: %s", len(args))
+                return
+
             fields = _extract_fields_from_open_order(contract, order, order_state)
-            broker_id = int(fields.get("broker_order_id") or 0)
-            if broker_id <= 0:
+
+            # Ensure we stamp broker_order_id from the callback param when present.
+            if broker_id > 0:
+                fields["broker_order_id"] = broker_id
+
+            if int(fields.get("broker_order_id") or 0) <= 0:
                 logger.debug("openOrderEvent missing broker_order_id; ignoring")
                 return
-            # Adopt or update with full metadata snapshot
-            self._upsert_by_broker_id(broker_id, fields)
+
+            # Adopt or update with full metadata snapshot.
+            self._upsert_by_broker_id(int(fields["broker_order_id"]), fields)
 
         except Exception:
             logger.exception("Error processing openOrderEvent")
@@ -236,21 +272,32 @@ class OrderTracker:
 
     def _find_order_id_by_broker_id(self, broker_order_id):
         """Return internal order_id for this broker id, or None if not found."""
-        # Prefer a direct helper if DB exposes one
+        # Prefer a direct helper if DB exposes one, but only use it if it returns a proper dict.
         try:
-            rec = self.db.get_order_by_broker_id(int(broker_order_id))
-            if rec:
-                return int(rec.get("order_id"))
+            get_fn = getattr(self.db, "get_order_by_broker_id", None)
+            if callable(get_fn):
+                rec = get_fn(int(broker_order_id))
+                if isinstance(rec, dict):
+                    oid = rec.get("order_id")
+                    try:
+                        return int(oid)
+                    except (TypeError, ValueError):
+                        pass  # fall through to scan
+
         except Exception:
+            # Any issues -> fall back to scanning list_orders
             pass
 
         # Fallback: scan list_orders
         try:
             for r in self._list_orders():
+                if not isinstance(r, dict):
+                    continue
                 try:
                     if int(r.get("broker_order_id") or 0) == int(broker_order_id):
                         return int(r.get("order_id"))
-                except Exception:
+
+                except (TypeError, ValueError):
                     continue
 
         except Exception:
@@ -270,7 +317,6 @@ class OrderTracker:
             payload = dict(fields)
             payload.setdefault("broker_order_id", int(broker_order_id))
             payload.setdefault("status", "SUBMITTED")
-
             self.db.add_order(payload)
             return
 

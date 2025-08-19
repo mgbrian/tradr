@@ -123,7 +123,7 @@ class TestOrderTracker(unittest.TestCase):
 
     # --- orderStatusEvent ---
 
-    def dont_test_order_status_updates_known_order_fields(self):
+    def test_order_status_updates_known_order_fields(self):
         # Known order id mapping
         self.db.list_orders.return_value = [
             {"order_id": 5, "broker_order_id": 777}
@@ -140,7 +140,7 @@ class TestOrderTracker(unittest.TestCase):
         self.assertEqual(updates.get("filled_qty"), 3)
         self.assertAlmostEqual(updates.get("avg_price"), 150.25)
 
-    def dont_test_order_status_adopts_unknown_order_minimally(self):
+    def test_order_status_adopts_unknown_order_minimally(self):
         # No known orders -> should add a minimal record
         self.db.list_orders.return_value = []
 
