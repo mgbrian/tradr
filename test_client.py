@@ -26,6 +26,9 @@ class TestTradingClient(unittest.TestCase):
         self.stub.CancelOrder.return_value = service_pb2.CancelOrderResponse(
             ok=True, status="CANCEL_REQUESTED", message=""
         )
+        self.stub.ModifyOrder.return_value = service_pb2.ModifyOrderResponse(
+            ok=True, status="MODIFY_REQUESTED", message=""
+        )
         self.stub.GetOrder.return_value = service_pb2.OrderRecord(
             order_id=7,
             broker_order_id=70,
@@ -263,6 +266,47 @@ class TestTradingClient(unittest.TestCase):
             ok=False, status="FILLED", message="already filled"
         )
         out = self.client.cancel_order(5)
+        self.assertEqual(out['ok'], False)
+        self.assertEqual(out['status'], "FILLED")
+        self.assertEqual(out['message'], "already filled")
+
+    # --- ModifyOrder ---
+
+    def test_modify_order_returns_plain_dict_and_uses_default_timeout(self):
+        out = self.client.modify_order(1)
+        self.assertEqual(out, {
+            'ok': True,
+            'status': 'MODIFY_REQUESTED',
+            'message': '',
+        })
+        args, kwargs = self.stub.ModifyOrder.call_args
+        self.assertIsInstance(args[0], service_pb2.ModifyOrderRequest)
+        self.assertEqual(args[0].order_id, 1)
+        # Optional 'price' should not be set when not provided
+        self.assertFalse(args[0].HasField("price"))
+        self.assertEqual(kwargs.get("timeout"), 0.75)
+
+    def test_modify_order_overrides_timeout(self):
+        _ = self.client.ModifyOrder(9, timeout=4.4)
+        _args, kwargs = self.stub.ModifyOrder.call_args
+        self.assertEqual(kwargs.get("timeout"), 4.4)
+
+    def test_modify_order_includes_optional_fields(self):
+        _ = self.client.modify_order(2, quantity=20, order_type="LMT", limit_price=123.45, tif="GTC")
+        args, _kwargs = self.stub.ModifyOrder.call_args
+        req = args[0]
+        self.assertEqual(req.order_id, 2)
+        self.assertEqual(req.quantity, 20)
+        self.assertEqual(req.order_type, "LMT")
+        self.assertTrue(req.HasField("price"))
+        self.assertAlmostEqual(req.price, 123.45)
+        self.assertEqual(req.tif, "GTC")
+
+    def test_modify_order_false_ok_is_propagated(self):
+        self.stub.ModifyOrder.return_value = service_pb2.ModifyOrderResponse(
+            ok=False, status="FILLED", message="already filled"
+        )
+        out = self.client.modify_order(3, quantity=1)
         self.assertEqual(out['ok'], False)
         self.assertEqual(out['status'], "FILLED")
         self.assertEqual(out['message'], "already filled")
