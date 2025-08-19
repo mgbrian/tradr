@@ -112,4 +112,4 @@ resp = api.place_stock_order("AAPL", "BUY", 100)
 print(resp) # {'order_id': ..., 'broker_order_id': ..., 'status': 'SUBMITTED', 'message': ''}
 ```
 
-Note that you can still make the calls over gRPC in this scenario (and skip the _minor_ additional overhead).
+Note that you can still make the calls over gRPC in this scenario (with _minor_ additional overhead).
