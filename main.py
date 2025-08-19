@@ -30,7 +30,7 @@ def _parse_args(argv):
     p.add_argument("--ib-host", default=DEFAULT_IB_HOST)
     p.add_argument("--ib-port", type=int, default=DEFAULT_IB_PORT)
     p.add_argument("--ib-client-id", type=int, default=DEFAULT_IB_CLIENT_ID)
-    p.add_argument("--enable-drainer", action="store_true", default=os.getenv("ENABLE_DRAINER", "0") == "1")
+    p.add_argument("--enable-drainer", action="store_true", default=os.getenv("USE_PERSISTENT_DB", "0") == "1")
     p.add_argument("--drainer-worker-id", default="core-drainer")
     p.add_argument("--log-level", default=os.getenv("LOG_LEVEL", "INFO"))
     return p.parse_args(argv)
