@@ -45,6 +45,10 @@ class InMemoryDB:
         # Append-only audit log (seq -> dict)
         self._log = []
 
+        # Secondary indexes (maintained automatically)
+        # broker_order_id (int) -> order_id (int)
+        self._orders_by_broker_id = {}
+
         # ID generators
         self._order_id_seq = itertools.count(1)
         self._fill_id_seq = itertools.count(1)
@@ -79,6 +83,12 @@ class InMemoryDB:
             rec.setdefault('updated_at', now)
             self._orders[order_id] = rec
 
+            # Maintain secondary index for broker_order_id if present and valid
+            broker_id = self._normalize_broker_id(rec.get('broker_order_id'))
+            if broker_id:
+                # If the broker id was already mapped to a different order, remap to the newest.
+                self._orders_by_broker_id[broker_id] = order_id
+
             self._append_log_locked('order_added', {'order_id': order_id})
 
             return order_id
@@ -105,8 +115,25 @@ class InMemoryDB:
                 raise KeyError(f"order_id {order_id} not found")
 
             rec = self._orders[order_id]
+            prev_broker_id = self._normalize_broker_id(rec.get('broker_order_id'))
+            new_broker_id = prev_broker_id
+
+            if 'broker_order_id' in updates:
+                new_broker_id = self._normalize_broker_id(updates.get('broker_order_id'))
+
+            # Apply updates
             rec.update(updates)
             rec['updated_at'] = time.time()
+
+            # Maintain secondary index if broker id changed
+            if new_broker_id != prev_broker_id:
+                # Remove previous mapping if it pointed to this order
+                if prev_broker_id and self._orders_by_broker_id.get(prev_broker_id) == order_id:
+                    del self._orders_by_broker_id[prev_broker_id]
+
+                # Set new mapping if valid
+                if new_broker_id:
+                    self._orders_by_broker_id[new_broker_id] = order_id
 
             self._append_log_locked('order_updated', {'order_id': order_id, 'updates': updates.copy()})
 
@@ -140,6 +167,61 @@ class InMemoryDB:
                 rows = rows[:int(limit)]
 
             return [r.copy() for r in rows]
+
+    # --- Order secondary index helpers (broker_order_id) ---
+
+    def get_order_by_broker_id(self, broker_order_id):
+        """Fetch an order by its broker/IB order id.
+
+        Args:
+            broker_order_id: int or str - Broker order id (coerced to int).
+
+        Returns:
+            dict or None - Copy of the order record, or None if not found.
+        """
+        bid = self._normalize_broker_id(broker_order_id)
+        if not bid:
+            return None
+
+        with self._lock:
+            oid = self._orders_by_broker_id.get(bid)
+            if oid is None:
+                return None
+            rec = self._orders.get(oid)
+            return rec.copy() if rec else None
+
+    def get_order_id_by_broker_id(self, broker_order_id):
+        """Fetch our internal order_id for a given broker order id.
+
+        Args:
+            broker_order_id: int or str - Broker order id.
+
+        Returns:
+            int or None - internal order_id if present, else None.
+        """
+        bid = self._normalize_broker_id(broker_order_id)
+        if not bid:
+            return None
+
+        with self._lock:
+            oid = self._orders_by_broker_id.get(bid)
+            return int(oid) if oid is not None else None
+
+    def find_order_by_broker_id(self, broker_order_id):
+        """Alias for get_order_by_broker_id (backwards compatibility with callers)."""
+        return self.get_order_by_broker_id(broker_order_id)
+
+    def reindex_orders_by_broker_id(self):
+        """Rebuild the broker_id -> order_id index from current orders.
+
+        Useful if external callers modified _orders directly (not recommended).
+        """
+        with self._lock:
+            self._orders_by_broker_id.clear()
+            for oid, rec in self._orders.items():
+                bid = self._normalize_broker_id(rec.get('broker_order_id'))
+                if bid:
+                    self._orders_by_broker_id[bid] = oid
 
     # --- Fill ---
 
@@ -380,3 +462,14 @@ class InMemoryDB:
         }
         self._log.append(entry)
         return seq
+
+    # --- Internal helpers ---
+
+    @staticmethod
+    def _normalize_broker_id(val):
+        """Normalize a broker_order_id-ish value to a positive int or 0 if invalid."""
+        try:
+            bid = int(val)
+            return bid if bid > 0 else 0
+        except Exception:
+            return 0

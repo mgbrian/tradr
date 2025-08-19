@@ -52,8 +52,18 @@ class IBSession:
         self._loop_thread = None  # background thread running loop.run_forever()
         self._owns_loop_thread = False
 
-    def connect(self):
+    def connect(self, *, auto_open_orders=True, seed_open_orders=True, seed_all_open_orders=False,
+        seed_completed_orders=False, completed_api_only=False):
         """Connect to IB Gateway/TWS and ensure the IB asyncio loop is running.
+
+        Also (optionally) enables/requests order synchronization from TWS so orders
+        created/modified/cancelled in the TWS GUI are reflected in this client:
+
+        - auto_open_orders=True calls reqAutoOpenOrders(True) so subsequent TWS changes stream in.
+        - seed_open_orders=True calls reqOpenOrders() to fetch current open orders for this client.
+        - seed_all_open_orders=True calls reqAllOpenOrders() (requires master permissions).
+        - seed_completed_orders=True calls reqCompletedOrders(apiOnly=completed_api_only) to backfill
+          recent completed orders (fills/cancels), useful on startup.
 
         Returns:
             bool - True if connected and loop running.
@@ -108,6 +118,40 @@ class IBSession:
 
             self._owns_loop_thread = True
             logger.debug("IB asyncio loop is running in background thread.")
+
+        # --- Order synchronization & seeding from TWS ---
+        # Best-effort -- failures (e.g. permission) are logged but do not abort connect.
+        try:
+            if auto_open_orders:
+                # Stream future changes made in TWS into this client
+                self.ib.reqAutoOpenOrders(True)
+
+        except Exception:
+            logger.exception("Failed to enable auto-open orders streaming (reqAutoOpenOrders)")
+
+        try:
+            if seed_open_orders:
+                # Seed current open orders for this client id
+                self.ib.reqOpenOrders()
+
+        except Exception:
+            logger.exception("Failed to request open orders (reqOpenOrders)")
+
+        try:
+            if seed_all_open_orders:
+                # Seed open orders for all clients (requires master/FA permissions set in TWS)
+                self.ib.reqAllOpenOrders()
+
+        except Exception:
+            logger.exception("Failed to request all open orders (reqAllOpenOrders)")
+
+        try:
+            if seed_completed_orders:
+                # Backfill recently completed orders (fills/cancels)
+                self.ib.reqCompletedOrders(apiOnly=bool(completed_api_only))
+
+        except Exception:
+            logger.exception("Failed to request completed orders (reqCompletedOrders)")
 
         logger.info("Connected to IB Gateway/TWS")
         return True

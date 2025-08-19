@@ -142,6 +142,62 @@ class TestInMemoryDB(unittest.TestCase):
         limited = self.db.get_logs(limit=2)
         self.assertEqual([r['seq'] for r in limited], [2, 3])
 
+    # --- Broker ID indexing (supporting TWS/multi-client sync)
+
+    def test_add_order_indexes_broker_id(self):
+        oid = self.db.add_order({'symbol': 'AAPL', 'broker_order_id': 1001})
+        self.assertIsInstance(oid, int)
+        rec = self.db.get_order_by_broker_id(1001)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec['order_id'], oid)
+        self.assertEqual(self.db.get_order_id_by_broker_id(1001), oid)
+
+    def test_update_order_sets_broker_id_and_indexes(self):
+        oid = self.db.add_order({'symbol': 'MSFT'})
+        self.assertIsNone(self.db.get_order_by_broker_id(2002))
+        self.db.update_order(oid, {'broker_order_id': 2002})
+        rec = self.db.get_order_by_broker_id(2002)
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec['order_id'], oid)
+
+    def test_update_order_changes_broker_id_and_reindexes(self):
+        oid = self.db.add_order({'symbol': 'TSLA', 'broker_order_id': 3003})
+        self.assertEqual(self.db.get_order_id_by_broker_id(3003), oid)
+        self.db.update_order(oid, {'broker_order_id': 4004})
+        self.assertIsNone(self.db.get_order_by_broker_id(3003))
+        self.assertEqual(self.db.get_order_id_by_broker_id(4004), oid)
+
+    def test_unset_broker_id_removes_index(self):
+        oid = self.db.add_order({'symbol': 'SPY', 'broker_order_id': 5005})
+        self.assertEqual(self.db.get_order_id_by_broker_id(5005), oid)
+        # Setting to 0/None removes mapping
+        self.db.update_order(oid, {'broker_order_id': 0})
+        self.assertIsNone(self.db.get_order_by_broker_id(5005))
+        self.db.update_order(oid, {'broker_order_id': None})  # no-op on index
+        self.assertIsNone(self.db.get_order_by_broker_id(5005))
+
+    def test_duplicate_broker_id_maps_to_last_writer(self):
+        oid1 = self.db.add_order({'symbol': 'AAPL', 'broker_order_id': 6006})
+        oid2 = self.db.add_order({'symbol': 'AAPL', 'broker_order_id': 6006})
+        # Mapping should now point at the second order
+        self.assertEqual(self.db.get_order_id_by_broker_id(6006), oid2)
+        # First order still exists; it's just not indexed on that broker id anymore
+        rec1 = self.db.get_order(oid1)
+        self.assertIsNotNone(rec1)
+        self.assertEqual(rec1.get('broker_order_id'), 6006)
+
+    def test_reindex_rebuilds_index(self):
+        oid = self.db.add_order({'symbol': 'QQQ'})
+        # Manually set field (simulating external mutation), then rebuild index
+        order = self.db.get_order(oid)
+        order['broker_order_id'] = 7007
+        # Force the mutation into the store improperly (simulate bad caller)
+        # In production, callers should use update_order; this test asserts reindex works.
+        self.db._orders[oid] = order  # noqa: SLF001 (accessing a private member in a unit test)
+        self.assertIsNone(self.db.get_order_id_by_broker_id(7007))
+        self.db.reindex_orders_by_broker_id()
+        self.assertEqual(self.db.get_order_id_by_broker_id(7007), oid)
+
 
 if __name__ == "__main__":
     unittest.main()
