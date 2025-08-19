@@ -42,6 +42,7 @@ If this is the first time setting up the app:
     - Allow socket connections.
     - Disable _Read Only_ mode.
     - Get the Socket Port number and add it to the `env.py` file generated in the install step. Note that there will usually be two different port numbers for Live and Paper Trading mode. Update it when you change modes.
+      - **IMPORTANT**: To sync orders made/updated in the IB UI (TWS), set Client ID in `env.py` to "0". If set to any other number, only orders made from the app (either programmatically or through the web UI) are visible.
     - Detailed reference article [here](https://interactivebrokers.github.io/tws-api/initial_setup.html).
 
     - **TWS**
