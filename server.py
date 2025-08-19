@@ -285,10 +285,13 @@ class TradingServiceServicer(service_pb2_grpc.TradingServiceServicer):
 
             if request.HasField("quantity"):
                 kwargs["quantity"] = int(request.quantity)
+
             if request.HasField("order_type"):
                 kwargs["order_type"] = (request.order_type or '').upper()
+
             if request.HasField("price"):
                 kwargs["limit_price"] = float(request.price)
+
             if request.HasField("tif"):
                 kwargs["tif"] = (request.tif or '').upper()
 

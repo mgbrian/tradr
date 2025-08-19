@@ -233,6 +233,42 @@ class TradingClient:
             'message': resp.message,
         }
 
+    def ModifyOrder(self, order_id, *, quantity=None, order_type=None, limit_price=None, tif=None, timeout=None):
+        """Request a modification of an existing order.
+
+        Args:
+            order_id: int - Internal order id to modify.
+            quantity: int (Optional) - New quantity (if changing).
+            order_type: str (Optional) - "MKT" | "LMT" | "STP".
+            limit_price: float (Optional) - New limit/stop price (proto field: price).
+            tif: str (Optional) - "DAY" | "GTC".
+            timeout: float (Optional) - RPC timeout in seconds; defaults to instance timeout.
+
+        Returns:
+            dict - {'ok': bool, 'status': str, 'message': str}
+        """
+        timeout = timeout or self.timeout
+        req = service_pb2.ModifyOrderRequest(order_id=int(order_id))
+        # Only set optional fields when provided so proto 'optional' semantics behave properly.
+        if quantity is not None:
+            req.quantity = int(quantity)
+
+        if order_type is not None:
+            req.order_type = str(order_type)
+
+        if limit_price is not None:
+            req.price = float(limit_price)
+
+        if tif is not None:
+            req.tif = str(tif)
+
+        resp = self._stub.ModifyOrder(req, timeout=timeout)
+        return {
+            'ok': bool(resp.ok),
+            'status': resp.status,
+            'message': resp.message,
+        }
+
     def GetOrder(self, order_id, timeout=None):
         """Fetch a single order by id.
 
@@ -320,6 +356,7 @@ class TradingClient:
     place_stock_order = PlaceStockOrder
     place_option_order = PlaceOptionOrder
     cancel_order = CancelOrder
+    modify_order = ModifyOrder
     get_order = GetOrder
     list_orders = ListOrders
     list_fills = ListFills
