@@ -26,6 +26,20 @@ logger = logging.getLogger(__name__)
 def _safe_upper(s):
     return str(s).upper() if s is not None else ""
 
+def _normalize_status(raw_status):
+    """Normalize raw broker status values to a simpler set of statuses for our DB.
+
+    Currently -- early submission status values ("presubmitted"/"pendingsubmit")
+        normalize to "submitted".
+    """
+    raw_status_uppercase = _safe_upper(raw_status)
+    # Fold early submit states into SUBMITTED to reduce state churn
+    if raw_status_uppercase in ("PRESUBMITTED", "PENDINGSUBMIT"):
+        return "SUBMITTED"
+
+    # default canonical form (uppercased), fallback to SUBMITTED
+    return raw_status_uppercase or "SUBMITTED"
+
 
 def _extract_price_for_order_type(order):
     """Return the price (float) to record for LMT/STP orders if present, else None."""
@@ -95,8 +109,7 @@ def _extract_fields_from_open_order(contract, order, order_state):
 
     # Status / message from OrderState
     try:
-        raw_status = getattr(order_state, "status", "") or ""
-        fields["status"] = _safe_upper(raw_status) or "SUBMITTED"
+        fields["status"] = _normalize_status(getattr(order_state, "status", ""))
     except Exception:
         fields["status"] = "SUBMITTED"
 
@@ -277,7 +290,8 @@ class OrderTracker:
             updates = {}
             if st is not None:
                 if getattr(st, "status", None) is not None:
-                    updates["status"] = _safe_upper(st.status)
+                    updates["status"] = _normalize_status(st.status)
+
                 try:
                     if getattr(st, "filled", None) is not None:
                         updates["filled_qty"] = int(st.filled)

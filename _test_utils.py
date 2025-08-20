@@ -18,6 +18,10 @@ class FakeEvent:
             pass
         return self
 
+    def emit(self, *args, **kwargs):
+        for h in list(self._handlers):
+            h(*args, **kwargs)
+
     # For code paths that call .remove(handler)
     def remove(self, handler):
         try:
@@ -31,3 +35,8 @@ class FakeEvent:
 
     def __getitem__(self, idx):
         return self._handlers[idx]
+
+    # Handy for assertions
+    @property
+    def handler_count(self):
+        return len(self._handlers)
