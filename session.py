@@ -6,6 +6,7 @@ TODO:
   See connect().
 """
 import asyncio
+import inspect
 import logging
 import os
 import threading
@@ -80,18 +81,7 @@ class IBSession:
         if not self.ib.isConnected():
             raise RuntimeError("Failed to connect to IB Gateway/TWS")
 
-        # ----------------------
-        # What we're doing here:
-        # ----------------------
-        # util.getLoop() creates or returns an event loop, but does not guarantee
-        # that the loop is running, resulting in calls to IB hanging and timing out.
-        #
-        # To ensure we always have a running loop here we:
-        #   1. Obtain (or create) the loop via util.getLoop()
-        #   2. If it's not running, we start loop.run_forever() in a daemon
-        #      thread and wait briefly until loop.is_running() flips to True.
-        #   3. Pin this loop onto the IB instance so other components
-        #      e.g. OrderManager can target it reliably.
+        # Pin / start loop (unchanged)
         loop = util.getLoop()
         self.loop = loop
         # Make the loop discoverable by downstream code (OrderManager uses this)
@@ -101,9 +91,7 @@ class IBSession:
         if not self.loop.is_running():
             logger.debug("IB asyncio loop not running; starting background loop thread...")
             self._loop_thread = threading.Thread(
-                target=self.loop.run_forever,
-                name="ib-asyncio",
-                daemon=True
+                target=self.loop.run_forever, name="ib-asyncio", daemon=True
             )
             self._loop_thread.start()
 
@@ -119,42 +107,97 @@ class IBSession:
             self._owns_loop_thread = True
             logger.debug("IB asyncio loop is running in background thread.")
 
-        # --- Order synchronization & seeding from TWS ---
-        # Best-effort -- failures (e.g. permission) are logged but do not abort connect.
+        def _schedule_async(awaitable, label):
+            """Schedule a coroutine/awaitable on the IB loop without blocking.
+
+            Accepts:
+                - coroutine objects  -> scheduled via run_coroutine_threadsafe
+                - Future/Task/other awaitables -> wrapped and scheduled on the loop
+                - None/non-awaitables -> treated as fire-and-forget (no-op)
+            Logs any eventual exception via a done-callback.
+            """
+            try:
+                if awaitable is None:
+                    logger.debug("%s returned None; nothing to await", label)
+                    return
+
+                # Case 1: proper coroutine
+                if asyncio.iscoroutine(awaitable):
+                    cfut = asyncio.run_coroutine_threadsafe(awaitable, self.loop)
+
+                    def _log_done(f):
+                        try:
+                            f.result()
+                        except Exception:
+                            logger.exception("%s failed (async)", label)
+
+                    cfut.add_done_callback(_log_done)
+                    return
+
+                # Case 2: awaitable that's not a coroutine (e.g., Future/Task bound to the IB loop)
+                if inspect.isawaitable(awaitable):
+                    async def _await_it(x):
+                        return await x
+
+                    def _on_loop():
+                        try:
+                            task = asyncio.create_task(_await_it(awaitable))
+                            def _done(t):
+                                exc = t.exception()
+                                if exc:
+                                    logger.exception("%s failed (async)", label, exc_info=exc)
+                            task.add_done_callback(_done)
+                        except Exception:
+                            logger.exception("Failed to schedule %s on loop", label)
+
+                    # Ensure we create the task from within the IB loop thread
+                    self.loop.call_soon_threadsafe(_on_loop)
+                    return
+
+                # Non-awaitable: nothing to do
+                logger.debug("%s returned a non-awaitable (%r); treating as no-op", label, awaitable)
+
+            except Exception:
+                logger.exception("Failed to schedule %s", label)
+
+        # --- Order sync & seeding from TWS (best-effort; failures won't abort connect) ---
+
         try:
             if auto_open_orders:
-                # Stream future changes made in TWS into this client
+                # Direct client call; no util.run involved
                 self.ib.reqAutoOpenOrders(True)
-
         except Exception:
             logger.exception("Failed to enable auto-open orders streaming (reqAutoOpenOrders)")
 
         try:
             if seed_open_orders:
-                # Seed current open orders for this client id
-                self.ib.reqOpenOrders()
-
+                if self.loop.is_running():
+                    _schedule_async(self.ib.reqOpenOrdersAsync(), "request open orders (reqOpenOrdersAsync)")
+                else:
+                    self.ib.reqOpenOrders()
         except Exception:
-            logger.exception("Failed to request open orders (reqOpenOrders)")
+            logger.exception("Failed to request open orders")
 
         try:
             if seed_all_open_orders:
-                # Seed open orders for all clients (requires master/FA permissions set in TWS)
-                self.ib.reqAllOpenOrders()
-
+                if self.loop.is_running():
+                    _schedule_async(self.ib.reqAllOpenOrdersAsync(), "request all open orders (reqAllOpenOrdersAsync)")
+                else:
+                    self.ib.reqAllOpenOrders()
         except Exception:
-            logger.exception("Failed to request all open orders (reqAllOpenOrders)")
+            logger.exception("Failed to request all open orders")
 
         try:
             if seed_completed_orders:
-                # Backfill recently completed orders (fills/cancels)
-                self.ib.reqCompletedOrders(apiOnly=bool(completed_api_only))
-
+                if self.loop.is_running():
+                    _schedule_async(
+                        self.ib.reqCompletedOrdersAsync(apiOnly=bool(completed_api_only)),
+                        "request completed orders (reqCompletedOrdersAsync)"
+                    )
+                else:
+                    self.ib.reqCompletedOrders(apiOnly=bool(completed_api_only))
         except Exception:
-            logger.exception("Failed to request completed orders (reqCompletedOrders)")
-
-        logger.info("Connected to IB Gateway/TWS")
-        return True
+            logger.exception("Failed to request completed orders")
 
     def disconnect(self):
         """Disconnect from IB Gateway/TWS and stop the background loop if owned.

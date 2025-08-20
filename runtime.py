@@ -26,6 +26,7 @@ import threading
 from api import TradingAPI
 from db.inmemorydb import InMemoryDB
 from execution_tracker import ExecutionTracker
+from order_tracker import OrderTracker
 from position_tracker import PositionTracker
 import server as grpc_server_module
 from session import IBSession, DEFAULT_IB_CLIENT_ID, DEFAULT_IB_HOST, DEFAULT_IB_PORT
@@ -69,6 +70,7 @@ class App:
         self.ib_session = IBSession(host=self.ib_host, port=self.ib_port, client_id=self.ib_client_id)
         self.position_tracker = None
         self.execution_tracker = None
+        self.order_tracker = None
         self.api = None
 
         # gRPC server handle
@@ -94,8 +96,17 @@ class App:
         # Trackers share the same IB + DB
         self.position_tracker = PositionTracker(self.ib_session.ib, db=self.db)
         self.position_tracker.start()
+
         self.execution_tracker = ExecutionTracker(self.ib_session.ib, db=self.db)
         self.execution_tracker.start()
+
+        self.order_tracker = OrderTracker(self.ib_session.ib, db=self.db)
+        self.order_tracker.start()
+        # Take an initial order snapshot
+        try:
+            self.order_tracker.refresh_now()
+        except Exception:
+            logging.exception("Initial order snapshot failed. Will rely on subsequent events.")
 
         # Shared API instance
         self.api = TradingAPI(self.ib_session.ib, self.db, position_tracker=self.position_tracker)
@@ -178,6 +189,12 @@ class App:
                 self.position_tracker.stop()
             except Exception:
                 logging.exception("Error stopping PositionTracker.")
+
+        if self.order_tracker:
+            try:
+                self.order_tracker.stop()
+            except Exception:
+                logging.exception("Error stopping OrderTracker.")
 
         try:
             self.ib_session.disconnect()
