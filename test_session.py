@@ -214,40 +214,48 @@ class TestIBSession(unittest.TestCase):
     # --- Order sync/seeding ---
 
     def test_connect_enables_auto_open_orders_and_seeds_open_orders_by_default(self):
-        """By default, connect() enables auto-open streaming and seeds open orders."""
+        """By default, connect() enables auto-open streaming and seeds open orders (async path)."""
         session = IBSession()
         session.connect()
         self.mock_ib_instance.reqAutoOpenOrders.assert_called_once_with(True)
-        self.mock_ib_instance.reqOpenOrders.assert_called_once()
+        # Loop is running, so async variant should be used
+        self.mock_ib_instance.reqOpenOrdersAsync.assert_called_once()
+        self.mock_ib_instance.reqOpenOrders.assert_not_called()
         # Not requested by default:
+        self.mock_ib_instance.reqAllOpenOrdersAsync.assert_not_called()
         self.mock_ib_instance.reqAllOpenOrders.assert_not_called()
+        self.mock_ib_instance.reqCompletedOrdersAsync.assert_not_called()
         self.mock_ib_instance.reqCompletedOrders.assert_not_called()
 
     def test_connect_can_seed_all_open_and_completed_orders_when_opted_in(self):
-        """When flags are set, connect() should request all-open and completed orders."""
+        """When flags are set, connect() should request all-open and completed orders (async)."""
         session = IBSession()
         session.connect(seed_all_open_orders=True, seed_completed_orders=True, completed_api_only=True)
-        self.mock_ib_instance.reqAllOpenOrders.assert_called_once()
-        self.mock_ib_instance.reqCompletedOrders.assert_called_once_with(apiOnly=True)
+        self.mock_ib_instance.reqAllOpenOrdersAsync.assert_called_once()
+        self.mock_ib_instance.reqCompletedOrdersAsync.assert_called_once()
+        # Ensure the sync variants were not used while loop is running
+        self.mock_ib_instance.reqAllOpenOrders.assert_not_called()
+        self.mock_ib_instance.reqCompletedOrders.assert_not_called()
 
     def test_connect_can_disable_auto_open_and_open_seeding(self):
         """Setting flags to False should skip corresponding IB calls."""
         session = IBSession()
         session.connect(auto_open_orders=False, seed_open_orders=False)
         self.mock_ib_instance.reqAutoOpenOrders.assert_not_called()
+        self.mock_ib_instance.reqOpenOrdersAsync.assert_not_called()
         self.mock_ib_instance.reqOpenOrders.assert_not_called()
 
-    def test_connect_ignores_order_seeding_errors_and_still_returns_true(self):
+    def test_connect_ignores_order_seeding_errors_and_does_not_raise(self):
         """Exceptions from seeding calls are logged and do not abort connect()."""
-        # Silence triggered error dumps (which may come off to the non-the-wiser dev as test failures)
+        # Silence triggered error dumps
         logging.disable(logging.CRITICAL)
         self.addCleanup(logging.disable, logging.NOTSET)
 
-        self.mock_ib_instance.reqAllOpenOrders.side_effect = RuntimeError("no permission")
+        self.mock_ib_instance.reqAllOpenOrdersAsync.side_effect = RuntimeError("no permission")
         session = IBSession()
-        ok = session.connect(seed_all_open_orders=True)
-        self.assertTrue(ok)
-        self.mock_ib_instance.reqAllOpenOrders.assert_called_once()
+        # Should not raise
+        session.connect(seed_all_open_orders=True)
+        self.mock_ib_instance.reqAllOpenOrdersAsync.assert_called_once()
 
 
 if __name__ == "__main__":
