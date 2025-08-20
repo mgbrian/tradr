@@ -31,7 +31,7 @@ def main():
         print(f"Managed accounts: {accounts}")
 
     else:
-        print("❌ Failed to connect (unknown reason).")
+        print("Failed to connect.")
 
     ib.disconnect()
 
