@@ -68,9 +68,9 @@ If this is the first time setting up the app:
 
 Conceptually the system is structured as follows:
 
-- Interface Layer: Where orders are triggered, managed, etc., by a human (through the web UI), algo(s) or AI agent.
-- API Layer: Neatly wraps and provides access to the underlying mechanisms. Ideally these will remain stable even with changes to the underlying mechanisms.
-- Lower Levels Internals: The majority of the system's functionality lies here (broker connection, order/contract management, event handling, etc.)
+- **Interface Layer**: Where orders are triggered, managed, etc., by a human (through the web UI), algo(s) or AI agent.
+- **API Layer**: Neatly wraps and provides access to the underlying mechanisms. Ideally methods exposed here will remain stable even with changes to the underlying mechanisms.
+- **Lower Level Internals**: The majority of the system's functionality lies here (broker connection, order/contract management, event handling, etc.)
 
 ```mermaid
 flowchart TD
