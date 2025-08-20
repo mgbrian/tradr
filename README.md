@@ -66,9 +66,49 @@ If this is the first time setting up the app:
 
 ## Advanced Usage
 
-The system uses certain singleton resources that must not be duplicated e.g. the connection to IB, in-memory database (and others).
+Conceptually the system is structured as follows:
 
-This has practical implications on programmatic interaction with the API (i.e. bypassing the web UI).
+- Interface Layer: Where orders are triggered, managed, etc., by a human (through the web UI), algo(s) or AI agent.
+- API Layer: Neatly wraps and provides access to the underlying mechanisms. Ideally these will remain stable even with changes to the underlying mechanisms.
+- Lower Levels Internals: The majority of the system's functionality lies here (broker connection, order/contract management, event handling, etc.)
+
+```mermaid
+flowchart TD
+
+    subgraph TOP[ ]
+        direction LR
+        ALGOS[ALGOS]
+        WEBUI[WEB UI]
+        AGENT[AI AGENT]
+    end
+
+    subgraph MID[ ]
+       GRPC[gRPC API]
+       RAWAPI[RAW API]
+    end
+
+    subgraph BOTTOM[ ]
+       INT[INTERNALS]
+    end
+
+    DB[(DB)]
+
+    IB[IB]
+
+    ALGOS -->|EITHER| GRPC
+    ALGOS -->|OR| RAWAPI
+    WEBUI --> GRPC
+    AGENT --> GRPC
+    GRPC --> RAWAPI
+    RAWAPI --> INT
+    INT --> DB
+    INT --> IB
+```
+
+**IMPORTANT:**
+The application relies on certain singleton resources that must not be duplicated, primarily the connection to IB and in-memory database.
+
+This has practical implications on programmatic interaction with the API (i.e. any use case that bypasses the web UI -- algos, experiments, etc.).
 
 ### Scenario 1. The web UI is needed
 
