@@ -166,7 +166,7 @@ class OrderTracker:
 
     def start(self):
         """Attach event listeners. Safe to call multiple times."""
-        logger.info("Starting OrderTracker")
+        logger.info("Starting OrderTracker.")
         if self._open_order_handler is None:
             self._open_order_handler = self._on_open_order
             try:
@@ -182,6 +182,13 @@ class OrderTracker:
 
             except Exception:
                 logger.exception("Failed to attach orderStatusEvent handler")
+
+        # Seed once so orders that existed before startup are reconciled.
+        # Safe because IB.connect() already populated wrapper state.
+        try:
+            self.refresh_now()
+        except Exception:
+            logger.exception("Initial orders snapshot seed failed")
 
     def stop(self):
         """Detach event listeners and cancel any pending snapshot."""
@@ -218,11 +225,7 @@ class OrderTracker:
     # --- Event handlers ---
 
     def _on_open_order(self, *args):
-        """Handle openOrderEvent (ib_async emits a single Trade).
-
-        We perform a best-effort immediate upsert from the payload, then schedule
-        a debounced snapshot reconcile using openOrdersAsync().
-        """
+        """Handle openOrderEvent (ib_async emits a single Trade)."""
         try:
             trade = args[0] if len(args) == 1 else None
             if trade is None or not hasattr(trade, "order"):
@@ -379,20 +382,47 @@ class OrderTracker:
                 self._snapshot_inflight = False
 
     def _fetch_and_reconcile_snapshot(self):
-        """Fetch open orders (prefer openOrdersAsync) and reconcile them into the DB."""
-        loop = getattr(self.ib, "loop", None)
-        get_async = getattr(self.ib, "openOrdersAsync", None)
-        if loop and callable(get_async):
-            try:
-                fut = asyncio.run_coroutine_threadsafe(get_async(), loop)
-                timeout = getattr(self.ib, "RequestTimeout", 10.0) or 10.0
-                trades = fut.result(timeout=timeout)
-            except Exception:
-                logger.exception("openOrdersAsync snapshot fetch failed")
-                return
+        """Fetch open orders and reconcile them into the DB.
 
-        else:
-            logger.debug("openOrdersAsync or loop not available; skipping snapshot reconcile")
+        Prefer the in-memory view (openTrades) which is fast & reliable,
+        falling back to reqOpenOrdersAsync() if necessary.
+        All access happens on the IB loop thread to avoid cross-thread races.
+        """
+        loop = getattr(self.ib, "loop", None)
+        if not loop:
+            logger.debug("IB loop not available; skipping snapshot reconcile")
+            return
+
+        timeout = getattr(self.ib, "RequestTimeout", 10.0) or 10.0
+        trades = None
+
+        # A. Preferred: openTrades() (Trade objects, already synced in wrapper)
+        get_open_trades = getattr(self.ib, "openTrades", None)
+        if callable(get_open_trades):
+            async def _get_trades():
+                # Read on the loop thread; return a shallow copy
+                return list(get_open_trades() or [])
+
+            try:
+                fut = asyncio.run_coroutine_threadsafe(_get_trades(), loop)
+                trades = fut.result(timeout=timeout)
+
+            except Exception:
+                logger.exception("openTrades snapshot fetch failed")
+
+        # B. Fallback: reqOpenOrdersAsync() (requests from TWS)
+        if trades is None:
+            req_async = getattr(self.ib, "reqOpenOrdersAsync", None)
+            if callable(req_async):
+                try:
+                    fut = asyncio.run_coroutine_threadsafe(req_async(), loop)
+                    trades = fut.result(timeout=timeout)
+
+                except Exception:
+                    logger.exception("reqOpenOrdersAsync snapshot fetch failed")
+
+        if not trades:
+            logger.debug("No open orders from snapshot; nothing to reconcile")
             return
 
         for trade in list(trades or []):
