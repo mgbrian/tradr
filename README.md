@@ -4,6 +4,8 @@ A stock/option trading application providing execution and management via API an
 
 Designed for direct algo integration (via the raw API) as well as AI agent control (via gRPC). Also provides a web interface for manual order execution and management.
 
+`STATUS: Functional, but still in development -- use with a paper account.`
+
 ## Setup
 
 If this is the first time setting up the app:
