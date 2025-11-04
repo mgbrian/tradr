@@ -1,5 +1,9 @@
 # TRADR
 
+A stock/option trading application providing execution and management via API and web interface. 
+
+Designed for direct algo integration (via the raw API) as well as AI agent control (via gRPC). Also provides a web interface for manual order execution and management.
+
 ## Setup
 
 If this is the first time setting up the app:
